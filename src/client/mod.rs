@@ -9,11 +9,13 @@ pub use domain::{
     merge_mycelium_spores,
 };
 pub use synapse::{
-    fetch_lineage, fetch_synapse_key, fetch_synapse_mycelium, fetch_synapse_spore,
-    fetch_taste_reports, post_synapse_pulse, search, BondNode, BondsQuery, BondsResponse,
-    BondsResult, BondsTrace, SearchResponse, SearchResponseQuery, SearchResult, SearchResultItem,
-    SynapseKeyResponse, SynapseMyceliumQuery, SynapseMyceliumResponse, SynapseMyceliumResult,
-    SynapseSporeQuery, SynapseSporeResponse, SynapseSporeResult,
+    fetch_lineage, fetch_synapse_cmn, fetch_synapse_mycelium_by_hash, fetch_synapse_spore,
+    fetch_synapse_taste, fetch_taste_reports, post_synapse_pulse, search, BondNode, BondsQuery,
+    BondsResponse, BondsResult, BondsTrace, SearchResponse, SearchResponseQuery, SearchResult,
+    SearchResultItem, SynapseCmnQuery, SynapseCmnResponse, SynapseCmnResult,
+    SynapseMyceliumByHashQuery, SynapseMyceliumByHashResponse, SynapseMyceliumByHashResult,
+    SynapseSporeQuery, SynapseSporeResponse, SynapseSporeResult, SynapseTasteQuery,
+    SynapseTasteResponse, SynapseTasteResult,
 };
 
 use anyhow::{anyhow, Result};
