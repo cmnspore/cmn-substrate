@@ -1,0 +1,94 @@
+{
+  "$id": "https://cmn.dev/schemas/v1/spore-core.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CMN Spore Core",
+  "description": "Schema for spore.core.json — the local draft metadata file maintained in a source repository and used to produce the final spore.json manifest at release time.",
+  "type": "object",
+  "required": ["$schema", "name", "synopsis", "intent", "license", "mutations", "bonds", "tree"],
+  "properties": {
+    "$schema": {
+      "const": "https://cmn.dev/schemas/v1/spore-core.json"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Opaque publisher-defined identifier. Consumers MUST treat raw id as opaque and MUST NOT use it directly as a filesystem path, shell token, or URL path segment. If a local-safe derivation is unsafe or collides, implementations MUST fall back to the spore hash."
+    },
+    "version": {
+      "type": "string",
+      "description": "Human-readable version string (e.g., 1.0.0). Optional."
+    },
+    "name": { "type": "string", "minLength": 1, "description": "Human-readable display name" },
+    "domain": {
+      "type": "string",
+      "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^ed25519\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Optional pre-filled author public key. If absent, the publishing implementation MUST populate it from the current signing domain identity during release. If present, it MUST match that identity."
+    },
+    "synopsis": { "type": "string", "description": "One-line summary — agent reads this alone and understands what the spore does" },
+    "intent": { "type": "array", "items": { "type": "string" }, "description": "Multi-paragraph description of this spore's functionality and purpose — what it does, how it works, why it exists. Each array item is a paragraph. Permanent, not cleared on release." },
+    "license": { "$ref": "#/$defs/spdx_expression_simple" },
+    "mutations": { "type": "array", "items": { "type": "string" }, "default": [], "description": "What changed relative to the spawned_from parent — describes the mutations applied to derive this spore from its ancestor." },
+    "size_bytes": false,
+    "updated_at_epoch_ms": false,
+    "bonds": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/bond" }
+    },
+    "tree": { "$ref": "#/$defs/tree" }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "spdx_expression_simple": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9-.+():]+(?:\\s+(?:AND|OR|WITH)\\s+[A-Za-z0-9-.+():]+)*$",
+      "description": "SPDX license expression (basic pattern validation). Full SPDX parser validation is recommended."
+    },
+    "cmn_uri": {
+      "type": "string",
+      "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?/[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "CMN URI format: cmn://{domain}/{algorithm}.{base58}"
+    },
+    "bond": {
+      "type": "object",
+      "required": ["uri", "relation"],
+      "properties": {
+        "uri": { "$ref": "#/$defs/cmn_uri" },
+        "relation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Relationship type. Predefined: spawned_from, absorbed_from, depends_on, follows, extends. Custom types allowed."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional opaque alias for this bond. Consumers MUST NOT use raw id directly as a filesystem path, shell token, or URL path segment. If a local-safe derivation is unsafe or collides, implementations MUST fall back to the bond target hash."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional explanation of why this bond exists and what role it plays. Typically omitted for spawned_from (use mutations field instead)."
+        },
+        "with": {
+          "type": "object",
+          "description": "Bond-specific parameters whose schema is defined by the bonded spore's convention. Opaque to the CMN protocol."
+        }
+      },
+      "additionalProperties": true
+    },
+    "tree": {
+      "type": "object",
+      "required": ["algorithm", "exclude_names", "follow_rules"],
+      "properties": {
+        "algorithm": { "type": "string", "description": "Tree hash algorithm (e.g., blob_tree_blake3_nfc)" },
+        "exclude_names": { "type": "array", "items": { "type": "string" } },
+        "follow_rules": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    }
+  }
+}
