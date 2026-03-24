@@ -303,15 +303,15 @@ pub async fn fetch_synapse_mycelium(
     json_from_response(response, &url, opts.max_bytes).await
 }
 
-/// Post a document (spore, mycelium, taste) to a synapse pulse endpoint.
+/// Post a document (spore, mycelium, taste, cmn.json) to a synapse pulse endpoint.
 ///
-/// POST /synapse/pulse with JSON body.
+/// POST /synapse/pulse with JSON body. Returns the synapse response.
 pub async fn post_synapse_pulse(
     client: &reqwest::Client,
     synapse_url: &str,
     payload: &serde_json::Value,
     opts: FetchOptions,
-) -> Result<()> {
+) -> Result<serde_json::Value> {
     let url = format!("{}/synapse/pulse", synapse_url.trim_end_matches('/'));
 
     let req = apply_headers(client.post(&url).json(payload), &opts);
@@ -323,5 +323,5 @@ pub async fn post_synapse_pulse(
         return Err(anyhow!("Synapse returned HTTP {status}: {body}"));
     }
 
-    Ok(())
+    json_from_response(response, &url, opts.max_bytes).await
 }

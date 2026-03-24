@@ -56,7 +56,7 @@
     },
     "mycelium_core": {
       "type": "object",
-      "required": ["name", "domain", "key", "synopsis", "nutrients", "updated_at_epoch_ms", "spores", "tastes"],
+      "required": ["name", "domain", "key", "synopsis", "updated_at_epoch_ms"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "domain": {

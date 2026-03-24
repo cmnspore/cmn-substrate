@@ -21,7 +21,9 @@ pub struct CmnEntry {
 pub struct CmnCapsuleEntry {
     pub uri: String,
     pub key: String,
+    #[serde(default)]
     pub previous_keys: Vec<PreviousKey>,
+    #[serde(default)]
     pub endpoints: Vec<CmnEndpoint>,
 }
 

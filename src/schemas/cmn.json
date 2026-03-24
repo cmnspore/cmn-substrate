@@ -3,7 +3,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CMN Domain Entry Point",
   "type": "object",
-  "required": ["$schema", "capsules", "protocol_versions", "capsule_signature"],
+  "required": ["$schema", "protocol_versions", "capsules", "capsule_signature"],
   "properties": {
     "$schema": {
       "const": "https://cmn.dev/schemas/v1/cmn.json"
@@ -33,7 +33,7 @@
   "$defs": {
     "capsule_entry": {
       "type": "object",
-      "required": ["uri", "key", "previous_keys", "endpoints"],
+      "required": ["uri", "key"],
       "properties": {
         "uri": {
           "type": "string",

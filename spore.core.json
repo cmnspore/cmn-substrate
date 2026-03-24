@@ -2,7 +2,7 @@
   "$schema": "https://cmn.dev/schemas/v1/spore-core.json",
   "id": "cmn-substrate",
   "name": "CMN Substrate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "domain": "cmn.dev",
   "key": "ed25519.7BmCWmBb2YeUWR7pmHvwAvi9wRm96VpZsJvZFSTfc2Uu",
   "synopsis": "Shared Rust library for CMN — data models, cryptographic verification, tree hashing, URI parsing, and JSON schema validation used by both Hypha and Synapse",
@@ -11,17 +11,13 @@
   ],
   "license": "MIT",
   "mutations": [
-    "Rust implementation of the CMN protocol core — Ed25519 signature verification, BLAKE3 content hashing, JCS canonicalization, and content-addressed URI construction for all protocol artifacts (spore, mycelium, taste, cmn.json)",
-    "Zero-I/O data model layer — strongly typed Rust structs for Spore, Mycelium, Taste, CmnEntry with two-layer signature verification (core + capsule), bond relations (spawned_from, absorbed_from, depends_on, follows, extends), and deterministic JSON formatting",
-    "WASM-compatible tree hashing (blob_tree_blake3_nfc) — Git-like Merkle tree with Unicode NFC normalization, configurable exclusion rules, and total size computation",
-    "Embedded JSON Schema validation for all five protocol schemas (cmn.json, mycelium.json, spore.json, spore-core.json, taste.json) with offline validation and schema type detection",
-    "Optional async HTTP client for fetching manifests with SSRF protection (rejects private IPs, localhost), Synapse API integration (search, lineage, pulse), and bearer token auth",
-    "Optional tar+zstd archive extraction with security hardening — rejects symlinks, path traversal, absolute paths, enforces byte and file count limits, distinguishes malicious vs failed errors"
+    "Add serde defaults for all optional array fields — previous_keys, endpoints, nutrients, spores, tastes, mutations, bonds default to empty Vec when absent in JSON, matching the relaxed schema requirements",
+    "Change post_synapse_pulse to return the synapse response body (Result<Value> instead of Result<()>) so callers can display pulse results"
   ],
   "bonds": [
     {
       "relation": "depends_on",
-      "uri": "cmn://cmn.dev/b3.3SLrF9op9hE9EKHPBh8Yqj7DDGkyCGtZdi1bfXAtvnNj",
+      "uri": "cmn://cmn.dev/b3.G3T2oFzktN7E4UJwwSSdXeTewpBaiXbo2FbRYfYLTijk",
       "id": "cmn-spec",
       "reason": "Implements core CMN data structures and verification logic per the specification"
     },

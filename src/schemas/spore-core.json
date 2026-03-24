@@ -4,7 +4,7 @@
   "title": "CMN Spore Core",
   "description": "Schema for spore.core.json — the local draft metadata file maintained in a source repository and used to produce the final spore.json manifest at release time.",
   "type": "object",
-  "required": ["$schema", "name", "synopsis", "intent", "license", "mutations", "bonds", "tree"],
+  "required": ["$schema", "name", "synopsis", "intent", "license", "tree"],
   "properties": {
     "$schema": {
       "const": "https://cmn.dev/schemas/v1/spore-core.json"
@@ -82,7 +82,7 @@
     },
     "tree": {
       "type": "object",
-      "required": ["algorithm", "exclude_names", "follow_rules"],
+      "required": ["algorithm"],
       "properties": {
         "algorithm": { "type": "string", "description": "Tree hash algorithm (e.g., blob_tree_blake3_nfc)" },
         "exclude_names": { "type": "array", "items": { "type": "string" } },
