@@ -128,11 +128,13 @@ pub struct SporeCore {
     pub synopsis: String,
     pub intent: Vec<String>,
     pub license: String,
+    #[serde(default)]
     pub mutations: Vec<String>,
     #[serde(default)]
     pub size_bytes: u64,
     #[serde(default)]
     pub updated_at_epoch_ms: u64,
+    #[serde(default)]
     pub bonds: Vec<SporeBond>,
     pub tree: SporeTree,
 }

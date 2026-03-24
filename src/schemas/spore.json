@@ -46,7 +46,7 @@
     },
     "spore_core": {
       "type": "object",
-      "required": ["name", "synopsis", "intent", "license", "mutations", "bonds", "tree"],
+      "required": ["name", "synopsis", "intent", "license", "tree"],
       "properties": {
         "id": {
           "type": "string",
@@ -84,7 +84,7 @@
     "spore_core_released": {
       "description": "Published spore core — the full spore_core as it appears in a released spore.json. Adds domain, key, size_bytes, updated_at_epoch_ms as required fields with proper type definitions (these are forbidden in the draft spore.core.json).",
       "type": "object",
-      "required": ["name", "domain", "key", "synopsis", "intent", "license", "mutations", "size_bytes", "updated_at_epoch_ms", "bonds", "tree"],
+      "required": ["name", "domain", "key", "synopsis", "intent", "license", "size_bytes", "updated_at_epoch_ms", "tree"],
       "properties": {
         "id": {
           "type": "string",
@@ -148,7 +148,7 @@
     },
     "tree": {
       "type": "object",
-      "required": ["algorithm", "exclude_names", "follow_rules"],
+      "required": ["algorithm"],
       "properties": {
         "algorithm": { "type": "string", "description": "Tree hash algorithm (e.g., blob_tree_blake3_nfc)" },
         "exclude_names": { "type": "array", "items": { "type": "string" } },

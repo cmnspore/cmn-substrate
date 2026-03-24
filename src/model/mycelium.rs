@@ -29,9 +29,12 @@ pub struct MyceliumCore {
     pub synopsis: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub bio: String,
+    #[serde(default)]
     pub nutrients: Vec<Nutrient>,
     pub updated_at_epoch_ms: u64,
+    #[serde(default)]
     pub spores: Vec<MyceliumCoreSpore>,
+    #[serde(default)]
     pub tastes: Vec<MyceliumCoreTaste>,
 }
 
