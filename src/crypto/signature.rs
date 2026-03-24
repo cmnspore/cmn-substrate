@@ -119,8 +119,8 @@ fn verify_ed25519(data: &[u8], signature_bytes: &[u8], public_key_bytes: &[u8]) 
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    #![allow(clippy::expect_used, clippy::unwrap_used)]
 
     use super::*;
     use crate::{format_key, KeyAlgorithm};

@@ -74,10 +74,42 @@ pub struct BondNode {
     pub relation: BondRelation,
 }
 
-/// Synapse key response.
+/// Synapse cmn response (GET /synapse/cmn/{domain}).
 #[derive(Debug, Deserialize)]
-pub struct SynapseKeyResponse {
-    pub key: String,
+pub struct SynapseCmnResponse {
+    pub code: String,
+    pub result: SynapseCmnResult,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SynapseCmnResult {
+    pub query: SynapseCmnQuery,
+    pub cmn: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SynapseCmnQuery {
+    pub domain: String,
+}
+
+/// Synapse taste response (GET /synapse/taste/{hash}).
+#[derive(Debug, Deserialize)]
+pub struct SynapseTasteResponse {
+    pub code: String,
+    pub result: SynapseTasteResult,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SynapseTasteResult {
+    pub query: SynapseTasteQuery,
+    pub taste: serde_json::Value,
+    #[serde(default)]
+    pub replicates: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SynapseTasteQuery {
+    pub hash: String,
 }
 
 /// Synapse spore response (GET /synapse/spore/{hash}).
@@ -100,24 +132,24 @@ pub struct SynapseSporeQuery {
     pub hash: String,
 }
 
-/// Synapse mycelium response (GET /synapse/mycelium/{domain}).
+/// Synapse mycelium-by-hash response (GET /synapse/mycelium/{hash}).
 #[derive(Debug, Deserialize)]
-pub struct SynapseMyceliumResponse {
+pub struct SynapseMyceliumByHashResponse {
     pub code: String,
-    pub result: SynapseMyceliumResult,
+    pub result: SynapseMyceliumByHashResult,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct SynapseMyceliumResult {
-    pub query: SynapseMyceliumQuery,
+pub struct SynapseMyceliumByHashResult {
+    pub query: SynapseMyceliumByHashQuery,
     pub mycelium: serde_json::Value,
     #[serde(default)]
     pub replicates: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct SynapseMyceliumQuery {
-    pub domain: String,
+pub struct SynapseMyceliumByHashQuery {
+    pub hash: String,
 }
 
 /// Search spores via a synapse instance.
@@ -219,17 +251,17 @@ pub async fn fetch_taste_reports(
     json_from_response(response, &url, opts.max_bytes).await
 }
 
-/// Fetch the public key a synapse has recorded for a domain.
+/// Fetch a cmn.json document from synapse.
 ///
-/// GET /synapse/key/{domain} → { "key": "ed25519.xxx" }
-pub async fn fetch_synapse_key(
+/// GET /synapse/cmn/{domain} → SynapseCmnResponse
+pub async fn fetch_synapse_cmn(
     client: &reqwest::Client,
     synapse_url: &str,
     domain: &str,
     opts: FetchOptions,
-) -> Result<SynapseKeyResponse> {
+) -> Result<SynapseCmnResponse> {
     let url = format!(
-        "{}/synapse/key/{}",
+        "{}/synapse/cmn/{}",
         synapse_url.trim_end_matches('/'),
         domain
     );
@@ -237,6 +269,12 @@ pub async fn fetch_synapse_key(
     let req = apply_headers(client.get(&url), &opts);
     let response = req.send().await?;
 
+    if response.status().as_u16() == 404 {
+        return Err(anyhow!(
+            "CMN entry not found in synapse for domain {}",
+            domain
+        ));
+    }
     if !response.status().is_success() {
         return Err(anyhow!("Synapse returned HTTP {}", response.status()));
     }
@@ -272,29 +310,54 @@ pub async fn fetch_synapse_spore(
     json_from_response(response, &url, opts.max_bytes).await
 }
 
-/// Fetch a mycelium manifest from synapse.
+/// Fetch a mycelium shard from synapse by hash.
 ///
-/// GET /synapse/mycelium/{domain} → SynapseMyceliumResponse
-pub async fn fetch_synapse_mycelium(
+/// GET /synapse/mycelium/{hash} → SynapseMyceliumByHashResponse
+pub async fn fetch_synapse_mycelium_by_hash(
     client: &reqwest::Client,
     synapse_url: &str,
-    domain: &str,
+    hash: &str,
     opts: FetchOptions,
-) -> Result<SynapseMyceliumResponse> {
+) -> Result<SynapseMyceliumByHashResponse> {
     let url = format!(
         "{}/synapse/mycelium/{}",
         synapse_url.trim_end_matches('/'),
-        domain
+        hash
     );
 
     let req = apply_headers(client.get(&url), &opts);
     let response = req.send().await?;
 
     if response.status().as_u16() == 404 {
-        return Err(anyhow!(
-            "Mycelium not found in synapse for domain {}",
-            domain
-        ));
+        return Err(anyhow!("Mycelium not found in synapse for hash {}", hash));
+    }
+    if !response.status().is_success() {
+        return Err(anyhow!("Synapse returned HTTP {}", response.status()));
+    }
+
+    json_from_response(response, &url, opts.max_bytes).await
+}
+
+/// Fetch a taste document from synapse by hash.
+///
+/// GET /synapse/taste/{hash} → SynapseTasteResponse
+pub async fn fetch_synapse_taste(
+    client: &reqwest::Client,
+    synapse_url: &str,
+    hash: &str,
+    opts: FetchOptions,
+) -> Result<SynapseTasteResponse> {
+    let url = format!(
+        "{}/synapse/taste/{}",
+        synapse_url.trim_end_matches('/'),
+        hash
+    );
+
+    let req = apply_headers(client.get(&url), &opts);
+    let response = req.send().await?;
+
+    if response.status().as_u16() == 404 {
+        return Err(anyhow!("Taste not found in synapse for hash {}", hash));
     }
     if !response.status().is_success() {
         return Err(anyhow!("Synapse returned HTTP {}", response.status()));

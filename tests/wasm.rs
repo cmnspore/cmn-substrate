@@ -1,6 +1,7 @@
 //! WASM integration tests — verify core algorithms run correctly in a WASM runtime.
 
 #![cfg(target_arch = "wasm32")]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use wasm_bindgen_test::*;
 

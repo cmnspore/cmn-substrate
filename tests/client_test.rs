@@ -1,5 +1,5 @@
 #![cfg(feature = "client")]
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use serde_json::json;
 use substrate::client::FetchOptions;
@@ -847,17 +847,84 @@ async fn fetch_synapse_spore_404() {
 }
 
 // ---------------------------------------------------------------------------
-// Synapse: fetch_synapse_mycelium
+// Synapse: fetch_synapse_cmn
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn fetch_synapse_mycelium_success() {
+async fn fetch_synapse_cmn_success() {
     let server = MockServer::start().await;
 
     let response = json!({
         "code": "ok",
         "result": {
             "query": {"domain": "example.com"},
+            "cmn": {
+                "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+                "capsules": [{
+                    "uri": "cmn://example.com",
+                    "key": "ed25519.testkey",
+                    "endpoints": []
+                }]
+            }
+        }
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/synapse/cmn/example.com"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(response))
+        .mount(&server)
+        .await;
+
+    let client = test_client();
+    let result = substrate::client::fetch_synapse_cmn(
+        &client,
+        &server.uri(),
+        "example.com",
+        Default::default(),
+    )
+    .await;
+
+    assert!(result.is_ok());
+    let resp = result.unwrap();
+    assert_eq!(resp.code, "ok");
+    assert_eq!(resp.result.query.domain, "example.com");
+}
+
+#[tokio::test]
+async fn fetch_synapse_cmn_404() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/synapse/cmn/unknown.com"))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&server)
+        .await;
+
+    let client = test_client();
+    let result = substrate::client::fetch_synapse_cmn(
+        &client,
+        &server.uri(),
+        "unknown.com",
+        Default::default(),
+    )
+    .await;
+
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("not found"));
+}
+
+// ---------------------------------------------------------------------------
+// Synapse: fetch_synapse_mycelium_by_hash
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn fetch_synapse_mycelium_by_hash_success() {
+    let server = MockServer::start().await;
+
+    let response = json!({
+        "code": "ok",
+        "result": {
+            "query": {"hash": "b3.mychash"},
             "mycelium": {
                 "$schema": "https://cmn.dev/schemas/v1/mycelium.json",
                 "capsule": {
@@ -877,16 +944,16 @@ async fn fetch_synapse_mycelium_success() {
     });
 
     Mock::given(method("GET"))
-        .and(path("/synapse/mycelium/example.com"))
+        .and(path("/synapse/mycelium/b3.mychash"))
         .respond_with(ResponseTemplate::new(200).set_body_json(response))
         .mount(&server)
         .await;
 
     let client = test_client();
-    let result = substrate::client::fetch_synapse_mycelium(
+    let result = substrate::client::fetch_synapse_mycelium_by_hash(
         &client,
         &server.uri(),
-        "example.com",
+        "b3.mychash",
         Default::default(),
     )
     .await;
@@ -894,7 +961,7 @@ async fn fetch_synapse_mycelium_success() {
     assert!(result.is_ok());
     let resp = result.unwrap();
     assert_eq!(resp.code, "ok");
-    assert_eq!(resp.result.query.domain, "example.com");
+    assert_eq!(resp.result.query.hash, "b3.mychash");
     assert_eq!(
         resp.result.mycelium["capsule"]["core"]["bio"],
         "Test mycelium"
@@ -902,20 +969,20 @@ async fn fetch_synapse_mycelium_success() {
 }
 
 #[tokio::test]
-async fn fetch_synapse_mycelium_404() {
+async fn fetch_synapse_mycelium_by_hash_404() {
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
-        .and(path("/synapse/mycelium/unknown.com"))
+        .and(path("/synapse/mycelium/b3.unknown"))
         .respond_with(ResponseTemplate::new(404))
         .mount(&server)
         .await;
 
     let client = test_client();
-    let result = substrate::client::fetch_synapse_mycelium(
+    let result = substrate::client::fetch_synapse_mycelium_by_hash(
         &client,
         &server.uri(),
-        "unknown.com",
+        "b3.unknown",
         Default::default(),
     )
     .await;
