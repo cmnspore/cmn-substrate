@@ -17,6 +17,7 @@ fn test_client() -> reqwest::Client {
 fn valid_cmn_json() -> serde_json::Value {
     json!({
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "protocol_versions": ["v1"],
         "capsules": [{
             "uri": "cmn://example.com",
             "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
@@ -191,6 +192,7 @@ async fn fetch_spore_manifest_http_500() {
 fn spore_url_template_resolution() {
     let cmn_json = json!({
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "protocol_versions": ["v1"],
         "capsules": [{
             "uri": "cmn://example.com",
             "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
@@ -664,6 +666,7 @@ async fn fetch_mycelium_manifest_json_parsing() {
 fn mycelium_url_template_resolution() {
     let cmn_json = json!({
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "protocol_versions": ["v1"],
         "capsules": [{
             "uri": "cmn://example.com",
             "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
@@ -689,6 +692,7 @@ fn mycelium_url_template_resolution() {
 fn taste_url_template_resolution() {
     let cmn_json = json!({
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "protocol_versions": ["v1"],
         "capsules": [{
             "uri": "cmn://example.com",
             "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
