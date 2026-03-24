@@ -1,0 +1,121 @@
+{
+  "$id": "https://cmn.dev/schemas/v1/mycelium.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CMN Mycelium",
+  "type": "object",
+  "required": ["$schema", "capsule", "capsule_signature"],
+  "properties": {
+    "$schema": {
+      "const": "https://cmn.dev/schemas/v1/mycelium.json"
+    },
+    "capsule": {
+      "type": "object",
+      "required": ["uri", "core", "core_signature"],
+      "properties": {
+        "uri": { "$ref": "#/$defs/mycelium_uri" },
+        "core": { "$ref": "#/$defs/mycelium_core" },
+        "core_signature": { "$ref": "#/$defs/signature" }
+      },
+      "additionalProperties": true
+    },
+    "capsule_signature": { "$ref": "#/$defs/signature" }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "mycelium_uri": {
+      "type": "string",
+      "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?/mycelium/[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Mycelium URI format: cmn://{domain}/mycelium/{algorithm}.{base58}"
+    },
+    "domain_uri": {
+      "type": "string",
+      "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+      "description": "Domain URI format: cmn://{domain}"
+    },
+    "spore_uri": {
+      "type": "string",
+      "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?/[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Spore URI format: cmn://{domain}/{algorithm}.{base58}"
+    },
+    "target_uri": {
+      "oneOf": [
+        { "$ref": "#/$defs/domain_uri" },
+        { "$ref": "#/$defs/spore_uri" },
+        { "$ref": "#/$defs/mycelium_uri" }
+      ],
+      "description": "Target URI of the evaluated entity (domain/spore/mycelium)"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Signature format: {algorithm}.{base58}, e.g., ed25519.3yMR7vZQ9hL2xKJd..."
+    },
+    "mycelium_core": {
+      "type": "object",
+      "required": ["name", "domain", "key", "synopsis", "nutrients", "updated_at_epoch_ms", "spores", "tastes"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "domain": {
+          "type": "string",
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^ed25519\\.[1-9A-HJ-NP-Za-km-z]+$",
+          "description": "Author's public key embedded at release time. Enables offline verification without fetching cmn.json."
+        },
+        "synopsis": { "type": "string", "description": "One-line summary of this domain" },
+        "bio": { "type": "string", "description": "Multiline markdown with full details about this domain" },
+        "nutrients": { "$ref": "#/$defs/nutrients" },
+        "updated_at_epoch_ms": { "type": "integer", "minimum": 0 },
+        "spores": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/spore_entry" }
+        },
+        "tastes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/taste_entry" },
+          "description": "Published taste reports for mirror discovery and re-submission"
+        }
+      },
+      "additionalProperties": true
+    },
+    "spore_entry": {
+      "type": "object",
+      "required": ["id", "hash", "name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "hash": { "$ref": "#/$defs/hash" },
+        "name": { "type": "string" },
+        "synopsis": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "taste_entry": {
+      "type": "object",
+      "required": ["hash", "target_uri"],
+      "properties": {
+        "hash": { "$ref": "#/$defs/hash", "description": "Content hash of the taste report" },
+        "target_uri": { "$ref": "#/$defs/target_uri", "description": "URI of the evaluated target" }
+      },
+      "additionalProperties": true
+    },
+    "nutrients": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/nutrient_method" },
+      "description": "Nutrient methods for this domain, ordered by preference (first = preferred)"
+    },
+    "nutrient_method": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1, "description": "Method type aligns with strain-payment-{type}. Field semantics defined by the corresponding strain convention." }
+      },
+      "additionalProperties": true
+    }
+  }
+}

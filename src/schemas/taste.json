@@ -1,0 +1,105 @@
+{
+  "$id": "https://cmn.dev/schemas/v1/taste.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CMN Taste Report",
+  "description": "A signed evaluation of a domain, spore, or mycelium. Shared taste reports are signed by a domain and may be distributed through Synapse or other transports defined by followed strains. Verdicts use a 5-level taste scale: sweet (used it, endorsed), fresh (reviewed, clean), safe (quick scan, OK), rotten (unusable), toxic (dangerous). Processing: toxic blocks, rotten warns, others proceed.",
+  "type": "object",
+  "required": ["$schema", "capsule", "capsule_signature"],
+  "properties": {
+    "$schema": {
+      "const": "https://cmn.dev/schemas/v1/taste.json"
+    },
+    "capsule": {
+      "type": "object",
+      "required": ["uri", "core", "core_signature"],
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/taste_uri",
+          "description": "Content-addressed URI of this taste report: cmn://{domain}/taste/{hash}"
+        },
+        "core": { "$ref": "#/$defs/taste_core" },
+        "core_signature": { "$ref": "#/$defs/signature" }
+      },
+      "additionalProperties": true
+    },
+    "capsule_signature": { "$ref": "#/$defs/signature" }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "taste_uri": {
+      "type": "string",
+      "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?/taste/[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Taste URI format: cmn://{domain}/taste/{algorithm}.{base58}"
+    },
+    "domain_uri": {
+      "type": "string",
+      "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+      "description": "Domain URI format: cmn://{domain}"
+    },
+    "spore_uri": {
+      "type": "string",
+      "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?/[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Spore URI format: cmn://{domain}/{algorithm}.{base58}"
+    },
+    "mycelium_uri": {
+      "type": "string",
+      "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?/mycelium/[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Mycelium URI format: cmn://{domain}/mycelium/{algorithm}.{base58}"
+    },
+    "target_uri": {
+      "oneOf": [
+        { "$ref": "#/$defs/domain_uri" },
+        { "$ref": "#/$defs/spore_uri" },
+        { "$ref": "#/$defs/mycelium_uri" }
+      ],
+      "description": "Target being evaluated. Allowed target types: domain, spore, mycelium. Taste URIs are not allowed."
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Hash format: {algorithm}.{base58}, e.g., b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Signature format: {algorithm}.{base58}, e.g., ed25519.3yMR7vZQ9hL2xKJd..."
+    },
+    "taste_core": {
+      "type": "object",
+      "required": ["target_uri", "domain", "key", "verdict", "tasted_at_epoch_ms"],
+      "properties": {
+        "target_uri": {
+          "$ref": "#/$defs/target_uri",
+          "description": "Full CMN URI of the target being tasted (domain/spore/mycelium)"
+        },
+        "domain": {
+          "type": "string",
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+          "description": "Domain of the publisher submitting this report. Implementations establish trust in this domain's key through cmn.json."
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^ed25519\\.[1-9A-HJ-NP-Za-km-z]+$",
+          "description": "Taster's public key embedded at release time. Enables offline verification without fetching cmn.json."
+        },
+        "verdict": {
+          "type": "string",
+          "enum": ["sweet", "fresh", "safe", "rotten", "toxic"],
+          "description": "Verdict on a 5-level scale. Processing rules: toxic → block, rotten → warn then proceed, safe/fresh/sweet → proceed. sweet: used it, endorsed; fresh: reviewed thoroughly, no issues; safe: quick scan, nothing obvious; rotten: unusable (broken, won't compile); toxic: confirmed dangerous (malware, data theft, backdoor)"
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Findings from the evaluation (e.g., 'eval() in src/init.rs:42'). Empty array if no specific findings."
+        },
+        "tasted_at_epoch_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "When the evaluation was performed (milliseconds since Unix epoch)"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

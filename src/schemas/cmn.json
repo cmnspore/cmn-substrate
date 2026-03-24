@@ -1,0 +1,218 @@
+{
+  "$id": "https://cmn.dev/schemas/v1/cmn.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CMN Domain Entry Point",
+  "type": "object",
+  "required": ["$schema", "capsules", "protocol_versions", "capsule_signature"],
+  "properties": {
+    "$schema": {
+      "const": "https://cmn.dev/schemas/v1/cmn.json"
+    },
+    "capsules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/capsule_entry" },
+      "description": "First entry is this host domain's own capsule; additional entries MAY describe mirrored origin domains."
+    },
+    "protocol_versions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^v[0-9]+$"
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Protocol versions supported by this domain (e.g. [\"v1\"])."
+    },
+    "capsule_signature": {
+      "$ref": "#/$defs/signature",
+      "description": "Signature over the capsules array, verified with capsules[0].key"
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "capsule_entry": {
+      "type": "object",
+      "required": ["uri", "key", "previous_keys", "endpoints"],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+          "description": "Domain URI of the capsule origin: cmn://{origin_domain}"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^ed25519\\.[1-9A-HJ-NP-Za-km-z]+$",
+          "description": "Ed25519 public key of the entry's origin domain in {algorithm}.{base58} format"
+        },
+        "previous_keys": {
+          "type": "array",
+          "description": "Retired keys for verifying historical content signed before key rotation. Empty array if no key rotation has occurred.",
+          "items": { "$ref": "#/$defs/previous_key" }
+        },
+        "endpoints": {
+          "$ref": "#/$defs/endpoints",
+          "description": "Typed array of endpoint definitions. Taste-only domains provide only a taste endpoint."
+        }
+      },
+      "additionalProperties": true
+    },
+    "domain": {
+      "type": "string",
+      "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+      "description": "Lowercase RFC1123 fully-qualified domain name"
+    },
+    "previous_key": {
+      "type": "object",
+      "required": ["key", "retired_at_epoch_ms"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^ed25519\\.[1-9A-HJ-NP-Za-km-z]+$",
+          "description": "Retired Ed25519 public key in {algorithm}.{base58} format"
+        },
+        "retired_at_epoch_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "When this key was retired (milliseconds since Unix epoch)"
+        }
+      },
+      "additionalProperties": true
+    },
+    "content_hash": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Content hash with algorithm prefix (e.g., b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2)"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+\\.[1-9A-HJ-NP-Za-km-z]+$",
+      "description": "Signature format: {algorithm}.{base58}, e.g., ed25519.3yMR7vZQ9hL2xKJd..."
+    },
+    "archive_format": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9+._-]*$",
+      "description": "Archive transport format identifier. Clients MUST select decoders by this field, not by filename suffix."
+    },
+    "endpoint_type": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "description": "Endpoint type identifier (e.g., mycelium, spore, archive, taste)"
+    },
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+$",
+      "description": "Protocol version this endpoint serves (e.g. \"v1\"). Defaults to \"v1\" when absent."
+    },
+    "endpoint_mycelium": {
+      "type": "object",
+      "required": ["type", "url", "hash"],
+      "properties": {
+        "type": { "const": "mycelium" },
+        "url": {
+          "type": "string",
+          "pattern": "\\{hash\\}",
+          "description": "Template URL for fetching mycelium, e.g. https://example.com/cmn/mycelium/{hash}.json"
+        },
+        "hash": {
+          "$ref": "#/$defs/content_hash",
+          "description": "Content hash of the primary mycelium manifest. Authoritative source for domain metadata (name, bio, nutrients) and featured spores. Used for change detection and display."
+        },
+        "hashes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/content_hash" },
+          "description": "Optional additional mycelium shard hashes for large domains. Each points to an overflow shard whose spore list is merged for search and indexing. Metadata from these shards is ignored — only the primary hash is authoritative."
+        },
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+      },
+      "additionalProperties": true
+    },
+    "endpoint_spore": {
+      "type": "object",
+      "required": ["type", "url"],
+      "properties": {
+        "type": { "const": "spore" },
+        "url": {
+          "type": "string",
+          "pattern": "\\{hash\\}",
+          "description": "Template URL for fetching spores, e.g. https://example.com/cmn/spore/{hash}.json"
+        },
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+      },
+      "additionalProperties": true
+    },
+    "endpoint_archive": {
+      "type": "object",
+      "required": ["type", "url", "format"],
+      "properties": {
+        "type": { "const": "archive" },
+        "url": {
+          "type": "string",
+          "pattern": "\\{hash\\}",
+          "description": "Template URL for archives. MUST include {hash}, e.g. https://example.com/cmn/archive/{hash}.tar.zst"
+        },
+        "format": {
+          "$ref": "#/$defs/archive_format",
+          "description": "Archive format identifier, e.g. tar+zstd or tar+gzip"
+        },
+        "delta_url": {
+          "type": "string",
+          "pattern": "(?=.*\\{hash\\})(?=.*\\{old_hash\\})",
+          "description": "Optional template URL for archive deltas. MUST include {hash} (target) and {old_hash} (cached base). Direction is old_hash -> hash."
+        },
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+      },
+      "additionalProperties": true
+    },
+    "endpoint_taste": {
+      "type": "object",
+      "required": ["type", "url"],
+      "properties": {
+        "type": { "const": "taste" },
+        "url": {
+          "type": "string",
+          "pattern": "\\{hash\\}",
+          "description": "Template URL for fetching taste reports, e.g. https://example.com/cmn/taste/{hash}.json"
+        },
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+      },
+      "additionalProperties": true
+    },
+    "endpoint_extension": {
+      "type": "object",
+      "required": ["type", "url"],
+      "properties": {
+        "type": {
+          "allOf": [
+            { "$ref": "#/$defs/endpoint_type" },
+            { "not": { "enum": ["mycelium", "spore", "archive", "taste"] } }
+          ],
+          "description": "Extension endpoint type identifier"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Template URL for this endpoint type"
+        },
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+      },
+      "additionalProperties": true
+    },
+    "endpoint_entry": {
+      "oneOf": [
+        { "$ref": "#/$defs/endpoint_mycelium" },
+        { "$ref": "#/$defs/endpoint_spore" },
+        { "$ref": "#/$defs/endpoint_archive" },
+        { "$ref": "#/$defs/endpoint_taste" },
+        { "$ref": "#/$defs/endpoint_extension" }
+      ]
+    },
+    "endpoints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/endpoint_entry" },
+      "description": "Typed array of endpoint definitions. Each entry has a 'type' field. Multiple archive entries with different formats are allowed. Clients SHOULD try entries in listed order."
+    }
+  }
+}
