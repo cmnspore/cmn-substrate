@@ -25,7 +25,10 @@ pub use crypto::{
 };
 pub use model::*;
 pub use schemas::{detect_schema_type, validate as validate_schema, SchemaType};
-pub use tree::{compute_tree_hash_from_entries, TreeEntry};
+pub use tree::{
+    compute_tree_hash_from_entries, flatten_entries, max_mtime, walk_dir, DirEntry, DirReader,
+    TreeEntry,
+};
 pub use uri::{
     build_domain_uri, build_mycelium_uri, build_spore_uri, build_taste_uri, cmn_entry_url,
     normalize_and_validate_url, normalize_taste_target_uri, parse_uri, validate_domain, CmnUri,

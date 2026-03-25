@@ -13,12 +13,14 @@ pub const ALGORITHM: &str = "blob_tree_blake3_nfc";
 /// Hash output size in bytes (BLAKE3 = 32).
 const HASH_SIZE: usize = 32;
 
-/// Git file modes.
+/// Git-compatible file modes.
 const MODE_FILE: &str = "100644";
 const MODE_EXECUTABLE: &str = "100755";
 const MODE_DIRECTORY: &str = "40000";
 
 /// In-memory representation of a filesystem entry for tree hashing.
+///
+/// Symlinks are not supported — implementations MUST reject them at walk time.
 pub enum TreeEntry {
     File {
         name: String,

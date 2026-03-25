@@ -35,10 +35,16 @@ pub struct ArchiveEntry {
 /// Error type for archive extraction operations.
 #[derive(Debug)]
 pub enum ExtractError {
-    /// Content is actively dangerous (symlinks, path traversal, zip bombs).
+    /// Content is actively dangerous (symlinks, hardlinks, path traversal, zip bombs).
     Malicious(String),
     /// Non-malicious failure (I/O error, unsupported format, etc.).
     Failed(String),
+}
+
+impl ExtractError {
+    pub fn is_malicious(&self) -> bool {
+        matches!(self, Self::Malicious(_))
+    }
 }
 
 impl std::fmt::Display for ExtractError {

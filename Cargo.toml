@@ -1,6 +1,6 @@
 [package]
 name = "cmn-substrate"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "CMN protocol core — Ed25519 signatures, BLAKE3 tree hashing, JSON schema validation, URI parsing, and JCS canonicalization. Zero I/O, WASM-compatible."
 license = "MIT"
