@@ -3,8 +3,10 @@
 use anyhow::{anyhow, Result};
 
 pub mod blob_tree_blake3_nfc;
+pub mod walk;
 
 pub use blob_tree_blake3_nfc::{compute_hash_from_entries, TreeEntry};
+pub use walk::{flatten_entries, max_mtime, should_exclude, walk_dir, DirEntry, DirReader};
 
 pub fn compute_tree_hash_from_entries(
     entries: &[TreeEntry],

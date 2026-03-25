@@ -2,7 +2,7 @@
   "$schema": "https://cmn.dev/schemas/v1/spore-core.json",
   "id": "cmn-substrate",
   "name": "CMN Substrate",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "domain": "cmn.dev",
   "key": "ed25519.7BmCWmBb2YeUWR7pmHvwAvi9wRm96VpZsJvZFSTfc2Uu",
   "synopsis": "Shared Rust library for CMN — data models, cryptographic verification, tree hashing, URI parsing, and JSON schema validation used by both Hypha and Synapse",
@@ -11,25 +11,24 @@
   ],
   "license": "MIT",
   "mutations": [
-    "Add serde defaults for all optional array fields — previous_keys, endpoints, nutrients, spores, tastes, mutations, bonds default to empty Vec when absent in JSON, matching the relaxed schema requirements",
-    "Change post_synapse_pulse to return the synapse response body (Result<Value> instead of Result<()>) so callers can display pulse results"
+    "Consolidate file traversal into DirReader trait — substrate drives walk logic with exclude_names and follow_rules filtering, callers provide I/O via trait implementation",
+    "Re-export should_exclude from tree module for downstream symlink validation",
+    "Reject symlinks in archive extraction with Malicious error, add is_malicious() helper to ExtractError",
+    "Sync spore-core.json schema: forbid spawned_from/absorbed_from bonds, add exclude_names/follow_rules descriptions"
   ],
   "bonds": [
     {
       "relation": "depends_on",
-      "uri": "cmn://cmn.dev/b3.G3T2oFzktN7E4UJwwSSdXeTewpBaiXbo2FbRYfYLTijk",
+      "uri": "cmn://cmn.dev/b3.HACXmE2ayjLS6jevn8rWyEYwq65m3sSjcwKgwHzrD24Z",
       "id": "cmn-spec",
       "reason": "Implements core CMN data structures and verification logic per the specification"
-    },
-    {
-      "relation": "spawned_from",
-      "uri": "cmn://cmn.dev/b3.GTmriE48Nm5LksaWQ9PrAfWEm5XrV3mdSPcnFYUZCkBU"
     }
   ],
   "tree": {
     "algorithm": "blob_tree_blake3_nfc",
     "exclude_names": [
-      ".git"
+      ".git",
+      ".cmn"
     ],
     "follow_rules": [
       ".gitignore"

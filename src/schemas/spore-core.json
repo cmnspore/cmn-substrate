@@ -61,7 +61,8 @@
         "relation": {
           "type": "string",
           "minLength": 1,
-          "description": "Relationship type. Predefined: spawned_from, absorbed_from, depends_on, follows, extends. Custom types allowed."
+          "not": { "enum": ["spawned_from", "absorbed_from"] },
+          "description": "Relationship type. Predefined: depends_on, follows, extends. Custom types allowed. Historical relations (spawned_from, absorbed_from) are injected at release time from .cmn/ metadata and must not appear in spore.core.json."
         },
         "id": {
           "type": "string",
@@ -85,8 +86,8 @@
       "required": ["algorithm"],
       "properties": {
         "algorithm": { "type": "string", "description": "Tree hash algorithm (e.g., blob_tree_blake3_nfc)" },
-        "exclude_names": { "type": "array", "items": { "type": "string" } },
-        "follow_rules": { "type": "array", "items": { "type": "string" } }
+        "exclude_names": { "type": "array", "items": { "type": "string" }, "description": "Directories or files to skip during tree hashing. SHOULD include .git and .cmn at minimum." },
+        "follow_rules": { "type": "array", "items": { "type": "string" }, "description": "Paths to ignore-style rule files (e.g., .gitignore) honored during tree hashing." }
       },
       "additionalProperties": true
     }
