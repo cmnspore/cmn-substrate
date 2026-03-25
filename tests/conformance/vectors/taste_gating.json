@@ -1,0 +1,97 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "Taste verdict gating for specific operations. Each operation has its own gating rules based on verdict severity.",
+  "cases": [
+    {
+      "id": "spawn_toxic_blocks",
+      "operation": "spawn",
+      "verdict": "toxic",
+      "expected_action": "block",
+      "description": "spawn MUST be blocked for toxic spores — dangerous code must never be placed in a working directory"
+    },
+    {
+      "id": "spawn_rotten_warns",
+      "operation": "spawn",
+      "verdict": "rotten",
+      "expected_action": "warn",
+      "description": "spawn SHOULD warn for rotten spores — broken code may be spawned with explicit acknowledgement"
+    },
+    {
+      "id": "spawn_safe_proceeds",
+      "operation": "spawn",
+      "verdict": "safe",
+      "expected_action": "proceed",
+      "description": "spawn proceeds for safe or higher verdicts"
+    },
+    {
+      "id": "spawn_untasted_blocks",
+      "operation": "spawn",
+      "verdict": null,
+      "expected_action": "block",
+      "description": "spawn MUST be blocked for untasted spores — fail closed by default"
+    },
+    {
+      "id": "grow_toxic_blocks",
+      "operation": "grow",
+      "verdict": "toxic",
+      "expected_action": "block",
+      "description": "grow MUST be blocked for toxic spores — prevents pulling malicious updates"
+    },
+    {
+      "id": "grow_rotten_warns",
+      "operation": "grow",
+      "verdict": "rotten",
+      "expected_action": "warn",
+      "description": "grow SHOULD warn for rotten updates"
+    },
+    {
+      "id": "absorb_toxic_blocks",
+      "operation": "absorb",
+      "verdict": "toxic",
+      "expected_action": "block",
+      "description": "absorb MUST be blocked for toxic spores — prevents merging malicious code"
+    },
+    {
+      "id": "absorb_rotten_warns",
+      "operation": "absorb",
+      "verdict": "rotten",
+      "expected_action": "warn",
+      "description": "absorb SHOULD warn for rotten spores"
+    },
+    {
+      "id": "absorb_safe_proceeds",
+      "operation": "absorb",
+      "verdict": "safe",
+      "expected_action": "proceed",
+      "description": "absorb proceeds for safe or higher verdicts"
+    },
+    {
+      "id": "bond_toxic_blocks",
+      "operation": "bond",
+      "verdict": "toxic",
+      "expected_action": "block",
+      "description": "bond MUST be blocked for toxic dependencies"
+    },
+    {
+      "id": "bond_safe_proceeds",
+      "operation": "bond",
+      "verdict": "safe",
+      "expected_action": "proceed",
+      "description": "bond proceeds for safe or higher verdicts"
+    },
+    {
+      "id": "taste_always_proceeds",
+      "operation": "taste",
+      "verdict": "toxic",
+      "expected_action": "proceed",
+      "description": "taste (download to cache for inspection) always proceeds regardless of verdict — you must be able to inspect toxic content to produce a verdict"
+    },
+    {
+      "id": "sense_always_proceeds",
+      "operation": "sense",
+      "verdict": "toxic",
+      "expected_action": "proceed",
+      "description": "sense (metadata fetch, no download) always proceeds — reading metadata is never dangerous"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "version": "cmn-conformance-v1",
+  "vectors": {
+    "algorithm_registry": "vectors/algorithm_registry.json",
+    "blob_tree_blake3_nfc": "vectors/blob_tree_blake3_nfc.json",
+    "bond_traversal": "vectors/bond_traversal.json",
+    "capsule": "vectors/capsule.json",
+    "key_rotation": "vectors/key_rotation.json",
+    "mycelium": "vectors/mycelium.json",
+    "signature": "vectors/signature.json",
+    "spore": "vectors/spore.json",
+    "strain": "vectors/strain.json",
+    "substrate": "vectors/substrate.json",
+    "taste": "vectors/taste.json",
+    "taste_gating": "vectors/taste_gating.json",
+    "uri": "vectors/uri.json"
+  }
+}

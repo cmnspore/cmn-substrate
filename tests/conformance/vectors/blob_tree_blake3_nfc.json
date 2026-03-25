@@ -1,0 +1,53 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "blob_tree_blake3_nfc tree hashing vectors. Tests NFC normalization, exclusions, and follow-rules behavior.",
+  "cases": [
+    {
+      "id": "basic_tree",
+      "entries": [
+        { "path": "README.md", "content": "hello\n" },
+        { "path": "src/main.rs", "content": "fn main() {}\n" }
+      ],
+      "exclude_names": [],
+      "follow_rules": [],
+      "expect_ok": true,
+      "root_hash": "b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W"
+    },
+    {
+      "id": "exclude_names",
+      "entries": [
+        { "path": "README.md", "content": "hello\n" },
+        { "path": "src/main.rs", "content": "fn main() {}\n" },
+        { "path": "target.bin", "content": "ignored\n" }
+      ],
+      "exclude_names": ["target.bin"],
+      "follow_rules": [],
+      "expect_ok": true,
+      "root_hash": "b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W"
+    },
+    {
+      "id": "follow_rules_gitignore",
+      "entries": [
+        { "path": ".gitignore", "content": "*.log\nbuild/\n" },
+        { "path": "app.log", "content": "ignored\n" },
+        { "path": "build/app.bin", "content": "ignored\n" },
+        { "path": "src/main.rs", "content": "fn main() {}\n" }
+      ],
+      "exclude_names": [],
+      "follow_rules": [".gitignore"],
+      "expect_ok": true,
+      "root_hash": "b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq"
+    },
+    {
+      "id": "nfc_filename_conflict",
+      "entries": [
+        { "path": "caf\u00e9.txt", "content": "nfc\n" },
+        { "path": "cafe\u0301.txt", "content": "nfd\n" }
+      ],
+      "exclude_names": [],
+      "follow_rules": [],
+      "expect_ok": false,
+      "error_code": "filename_nfc_conflict"
+    }
+  ]
+}

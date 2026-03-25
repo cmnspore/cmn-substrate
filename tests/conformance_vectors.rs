@@ -224,7 +224,7 @@ struct AlgorithmRegistryCase {
 }
 
 fn conformance_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("cmn-spec/conformance/v1")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/conformance")
 }
 
 fn load_vector_file<T: DeserializeOwned>(path: &Path) -> Result<T> {

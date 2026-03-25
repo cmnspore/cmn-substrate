@@ -1,0 +1,115 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "01-substrate vectors for cmn.json primary capsule semantics, endpoint resolution, key confirmation, and protocol-version fallback.",
+  "cases": [
+    {
+      "id": "primary_capsule_endpoints_and_versions",
+      "cmn": {
+        "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "protocol_versions": ["v1", "v2"],
+        "capsules": [
+          {
+            "uri": "cmn://cmn.dev",
+            "key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+            "previous_keys": [
+              {
+                "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+                "retired_at_epoch_ms": 1710000000000
+              }
+            ],
+            "endpoints": [
+              {
+                "type": "mycelium",
+                "url": "https://cmn.dev/cmn/mycelium/{hash}.json",
+                "hash": "b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+              },
+              {
+                "type": "spore",
+                "url": "https://cmn.dev/cmn/spore/{hash}.json"
+              },
+              {
+                "type": "archive",
+                "url": "https://cmn.dev/cmn/archive/{hash}.tar.zst",
+                "format": "tar+zstd",
+                "delta_url": "https://cmn.dev/cmn/archive/{hash}.from.{old_hash}.tar.zst"
+              },
+              {
+                "type": "archive",
+                "url": "https://cmn.dev/cmn/archive/{hash}.tar.gz",
+                "format": "tar+gzip"
+              },
+              {
+                "type": "taste",
+                "url": "https://cmn.dev/cmn/taste/{hash}.json"
+              }
+            ]
+          },
+          {
+            "uri": "cmn://mirror.dev",
+            "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+            "previous_keys": [],
+            "endpoints": [
+              {
+                "type": "spore",
+                "url": "https://mirror.dev/cmn/spore/{hash}.json"
+              }
+            ]
+          }
+        ],
+        "capsule_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt"
+      },
+      "expected_primary_uri": "cmn://cmn.dev",
+      "expected_primary_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "expected_mycelium_hash": "b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+      "confirm_keys": [
+        "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+        "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU"
+      ],
+      "reject_keys": ["ed25519.2p3NPZceQ6njbPg8aMFsEynX3Cmv6uCt1XMGHhPcL4AT"],
+      "supports_versions": ["v1", "v2"],
+      "rejects_versions": ["v3"],
+      "resolve_hash": "b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W",
+      "resolve_old_hash": "b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq",
+      "expected_mycelium_url": "https://cmn.dev/cmn/mycelium/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W.json",
+      "expected_spore_url": "https://cmn.dev/cmn/spore/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W.json",
+      "expected_archive_url": "https://cmn.dev/cmn/archive/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W.tar.zst",
+      "expected_archive_delta_url": "https://cmn.dev/cmn/archive/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W.from.b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq.tar.zst",
+      "expected_taste_url": "https://cmn.dev/cmn/taste/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W.json"
+    },
+    {
+      "id": "taste_only_domain",
+      "cmn": {
+        "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "protocol_versions": ["v1"],
+        "capsules": [
+          {
+            "uri": "cmn://taste.dev",
+            "key": "ed25519.2p3NPZceQ6njbPg8aMFsEynX3Cmv6uCt1XMGHhPcL4AT",
+            "previous_keys": [],
+            "endpoints": [
+              {
+                "type": "taste",
+                "url": "https://taste.dev/cmn/taste/{hash}.json"
+              }
+            ]
+          }
+        ],
+        "capsule_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt"
+      },
+      "expected_primary_uri": "cmn://taste.dev",
+      "expected_primary_key": "ed25519.2p3NPZceQ6njbPg8aMFsEynX3Cmv6uCt1XMGHhPcL4AT",
+      "expected_mycelium_hash": null,
+      "confirm_keys": ["ed25519.2p3NPZceQ6njbPg8aMFsEynX3Cmv6uCt1XMGHhPcL4AT"],
+      "reject_keys": ["ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj"],
+      "supports_versions": ["v1"],
+      "rejects_versions": ["v2"],
+      "resolve_hash": null,
+      "resolve_old_hash": null,
+      "expected_mycelium_url": null,
+      "expected_spore_url": null,
+      "expected_archive_url": null,
+      "expected_archive_delta_url": null,
+      "expected_taste_url": null
+    }
+  ]
+}

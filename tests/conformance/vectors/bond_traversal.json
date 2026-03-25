@@ -1,0 +1,97 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "Bond traversal and lineage resolution test vectors. Tests BFS/DFS graph operations on spore bond relationships.",
+  "cases": [
+    {
+      "id": "direct_spawned_from",
+      "description": "A spore that was spawned_from another has a direct lineage link",
+      "spore_uri": "cmn://b.dev/b3.child",
+      "bonds": [
+        { "relation": "spawned_from", "uri": "cmn://a.dev/b3.parent" }
+      ],
+      "query": { "direction": "outbound", "relation": "spawned_from" },
+      "expected_uris": ["cmn://a.dev/b3.parent"],
+      "expected_depth": 1
+    },
+    {
+      "id": "chain_ancestry_depth_2",
+      "description": "Traversing spawned_from across two hops: grandchild → child → parent",
+      "graph": [
+        { "uri": "cmn://c.dev/b3.grandchild", "bonds": [{ "relation": "spawned_from", "uri": "cmn://b.dev/b3.child" }] },
+        { "uri": "cmn://b.dev/b3.child", "bonds": [{ "relation": "spawned_from", "uri": "cmn://a.dev/b3.parent" }] },
+        { "uri": "cmn://a.dev/b3.parent", "bonds": [] }
+      ],
+      "query": { "start": "cmn://c.dev/b3.grandchild", "direction": "outbound", "relation": "spawned_from", "max_depth": 10 },
+      "expected_uris": ["cmn://b.dev/b3.child", "cmn://a.dev/b3.parent"],
+      "expected_depth": 2
+    },
+    {
+      "id": "depth_limit_respected",
+      "description": "Traversal stops at max_depth even if more ancestors exist",
+      "graph": [
+        { "uri": "cmn://c.dev/b3.grandchild", "bonds": [{ "relation": "spawned_from", "uri": "cmn://b.dev/b3.child" }] },
+        { "uri": "cmn://b.dev/b3.child", "bonds": [{ "relation": "spawned_from", "uri": "cmn://a.dev/b3.parent" }] },
+        { "uri": "cmn://a.dev/b3.parent", "bonds": [] }
+      ],
+      "query": { "start": "cmn://c.dev/b3.grandchild", "direction": "outbound", "relation": "spawned_from", "max_depth": 1 },
+      "expected_uris": ["cmn://b.dev/b3.child"],
+      "expected_depth": 1
+    },
+    {
+      "id": "inbound_descendants",
+      "description": "Inbound query finds all spores that were spawned_from a given spore",
+      "graph": [
+        { "uri": "cmn://b.dev/b3.fork1", "bonds": [{ "relation": "spawned_from", "uri": "cmn://a.dev/b3.original" }] },
+        { "uri": "cmn://c.dev/b3.fork2", "bonds": [{ "relation": "spawned_from", "uri": "cmn://a.dev/b3.original" }] },
+        { "uri": "cmn://a.dev/b3.original", "bonds": [] }
+      ],
+      "query": { "start": "cmn://a.dev/b3.original", "direction": "inbound", "relation": "spawned_from" },
+      "expected_uris_unordered": ["cmn://b.dev/b3.fork1", "cmn://c.dev/b3.fork2"]
+    },
+    {
+      "id": "mixed_relations_filtered",
+      "description": "When filtering by relation, only matching bonds are traversed",
+      "spore_uri": "cmn://b.dev/b3.app",
+      "bonds": [
+        { "relation": "spawned_from", "uri": "cmn://a.dev/b3.template" },
+        { "relation": "depends_on", "uri": "cmn://c.dev/b3.lib" },
+        { "relation": "follows", "uri": "cmn://d.dev/b3.strain" }
+      ],
+      "query": { "direction": "outbound", "relation": "depends_on" },
+      "expected_uris": ["cmn://c.dev/b3.lib"]
+    },
+    {
+      "id": "all_relations_unfiltered",
+      "description": "Without relation filter, all outbound bonds are returned",
+      "spore_uri": "cmn://b.dev/b3.app",
+      "bonds": [
+        { "relation": "spawned_from", "uri": "cmn://a.dev/b3.template" },
+        { "relation": "depends_on", "uri": "cmn://c.dev/b3.lib" }
+      ],
+      "query": { "direction": "outbound" },
+      "expected_uris_unordered": ["cmn://a.dev/b3.template", "cmn://c.dev/b3.lib"]
+    },
+    {
+      "id": "cycle_detection",
+      "description": "Bond traversal must not loop infinitely when cycles exist",
+      "graph": [
+        { "uri": "cmn://a.dev/b3.alpha", "bonds": [{ "relation": "depends_on", "uri": "cmn://b.dev/b3.beta" }] },
+        { "uri": "cmn://b.dev/b3.beta", "bonds": [{ "relation": "depends_on", "uri": "cmn://a.dev/b3.alpha" }] }
+      ],
+      "query": { "start": "cmn://a.dev/b3.alpha", "direction": "outbound", "relation": "depends_on", "max_depth": 10 },
+      "expected_uris": ["cmn://b.dev/b3.beta"],
+      "note": "Each URI must appear at most once in results — BFS/DFS must track visited nodes"
+    },
+    {
+      "id": "follows_non_transitive",
+      "description": "Follows bonds are non-transitive: if A follows B and B follows C, A does NOT follow C",
+      "graph": [
+        { "uri": "cmn://a.dev/b3.service", "bonds": [{ "relation": "follows", "uri": "cmn://b.dev/b3.strain_chat" }] },
+        { "uri": "cmn://b.dev/b3.strain_chat", "bonds": [{ "relation": "follows", "uri": "cmn://c.dev/b3.strain_service" }] }
+      ],
+      "query": { "start": "cmn://a.dev/b3.service", "direction": "outbound", "relation": "follows", "max_depth": 1 },
+      "expected_uris": ["cmn://b.dev/b3.strain_chat"],
+      "note": "Per spec: follows is non-transitive. Depth 1 is the correct behavior for conformance checking."
+    }
+  ]
+}

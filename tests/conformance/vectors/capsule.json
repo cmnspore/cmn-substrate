@@ -1,0 +1,70 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "Two-layer capsule signature verification scenarios. Tests the relationship between core_signature (author) and capsule_signature (host).",
+  "cases": [
+    {
+      "id": "valid_self_hosted",
+      "description": "Self-hosted spore: author and host are the same domain, both signatures use the same key",
+      "uri_domain": "cmn.dev",
+      "core_domain": "cmn.dev",
+      "core_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "capsule_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "core_signature_valid": true,
+      "capsule_signature_valid": true,
+      "is_replicate": false,
+      "expected_valid": true
+    },
+    {
+      "id": "valid_replicate",
+      "description": "Replicate: core.domain differs from URI domain, core_signature uses author key, capsule_signature uses host key",
+      "uri_domain": "mirror.dev",
+      "core_domain": "cmn.dev",
+      "core_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "capsule_key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+      "core_signature_valid": true,
+      "capsule_signature_valid": true,
+      "is_replicate": true,
+      "expected_valid": true,
+      "note": "core_signature verifies against author (cmn.dev) key, capsule_signature verifies against host (mirror.dev) key"
+    },
+    {
+      "id": "invalid_core_signature",
+      "description": "Tampered core: core_signature does not verify against core_key",
+      "uri_domain": "cmn.dev",
+      "core_domain": "cmn.dev",
+      "core_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "capsule_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "core_signature_valid": false,
+      "capsule_signature_valid": true,
+      "is_replicate": false,
+      "expected_valid": false,
+      "error_code": "sig_failed"
+    },
+    {
+      "id": "invalid_capsule_signature",
+      "description": "Tampered capsule: capsule_signature does not verify against host domain key",
+      "uri_domain": "cmn.dev",
+      "core_domain": "cmn.dev",
+      "core_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "capsule_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "core_signature_valid": true,
+      "capsule_signature_valid": false,
+      "is_replicate": false,
+      "expected_valid": false,
+      "error_code": "sig_failed"
+    },
+    {
+      "id": "replicate_detection",
+      "description": "Replicate identification: core.domain != URI domain indicates a mirror, not a forgery",
+      "uri_domain": "mirror.dev",
+      "core_domain": "original.dev",
+      "core_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "capsule_key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+      "core_signature_valid": true,
+      "capsule_signature_valid": true,
+      "is_replicate": true,
+      "expected_valid": true,
+      "note": "Implementations MUST verify core_signature against original.dev's key and capsule_signature against mirror.dev's key"
+    }
+  ]
+}

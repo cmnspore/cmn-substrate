@@ -1,0 +1,71 @@
+{
+  "version": "cmn-conformance-v1",
+  "cases": [
+    {
+      "id": "valid_domain",
+      "uri": "cmn://example.com",
+      "parse_ok": true,
+      "normalized_uri": "cmn://example.com"
+    },
+    {
+      "id": "valid_domain_trailing_slash",
+      "uri": "cmn://example.com/",
+      "parse_ok": true,
+      "normalized_uri": "cmn://example.com"
+    },
+    {
+      "id": "valid_spore",
+      "uri": "cmn://example.com/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+      "parse_ok": true,
+      "normalized_uri": "cmn://example.com/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+    },
+    {
+      "id": "valid_mycelium",
+      "uri": "cmn://example.com/mycelium/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+      "parse_ok": true,
+      "normalized_uri": "cmn://example.com/mycelium/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+    },
+    {
+      "id": "valid_taste",
+      "uri": "cmn://alice.dev/taste/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+      "parse_ok": true,
+      "normalized_uri": "cmn://alice.dev/taste/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+    },
+    {
+      "id": "invalid_scheme",
+      "uri": "http://example.com/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+      "parse_ok": false,
+      "error_code": "invalid_scheme"
+    },
+    {
+      "id": "invalid_hash",
+      "uri": "cmn://example.com/not-a-hash",
+      "parse_ok": false,
+      "error_code": "invalid_hash"
+    },
+    {
+      "id": "invalid_domain_single_label",
+      "uri": "cmn://example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+      "parse_ok": false,
+      "error_code": "invalid_domain"
+    },
+    {
+      "id": "invalid_domain_uppercase",
+      "uri": "cmn://EXAMPLE.com/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+      "parse_ok": false,
+      "error_code": "invalid_domain"
+    },
+    {
+      "id": "missing_mycelium_hash",
+      "uri": "cmn://example.com/mycelium",
+      "parse_ok": false,
+      "error_code": "missing_hash"
+    },
+    {
+      "id": "missing_taste_hash",
+      "uri": "cmn://example.com/taste/",
+      "parse_ok": false,
+      "error_code": "missing_hash"
+    }
+  ]
+}

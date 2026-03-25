@@ -28,8 +28,7 @@
     "algorithm": "blob_tree_blake3_nfc",
     "exclude_names": [
       ".git",
-      ".cmn",
-      "cmn-spec"
+      ".cmn"
     ],
     "follow_rules": [
       ".gitignore"

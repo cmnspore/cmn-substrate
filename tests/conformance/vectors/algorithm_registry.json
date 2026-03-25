@@ -1,0 +1,61 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "07-algorithm-registry vectors for algorithm.value parsing/formatting and tree algorithm rejection behavior.",
+  "cases": [
+    {
+      "id": "hash_b3_active",
+      "kind": "hash",
+      "value": "b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+      "parse_ok": true,
+      "normalized_value": "b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+    },
+    {
+      "id": "key_ed25519_active",
+      "kind": "key",
+      "value": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "parse_ok": true,
+      "normalized_value": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj"
+    },
+    {
+      "id": "signature_ed25519_active",
+      "kind": "signature",
+      "value": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+      "parse_ok": true,
+      "normalized_value": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt"
+    },
+    {
+      "id": "unknown_hash_algorithm_rejected",
+      "kind": "hash",
+      "value": "sha256.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+      "parse_ok": false,
+      "error_code": "unsupported_algorithm"
+    },
+    {
+      "id": "unknown_key_algorithm_rejected",
+      "kind": "key",
+      "value": "rsa.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "parse_ok": false,
+      "error_code": "unsupported_algorithm"
+    },
+    {
+      "id": "unknown_signature_algorithm_rejected",
+      "kind": "signature",
+      "value": "rsa.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+      "parse_ok": false,
+      "error_code": "unsupported_algorithm"
+    },
+    {
+      "id": "tree_algorithm_blob_tree_blake3_nfc_active",
+      "kind": "tree",
+      "tree_algorithm": "blob_tree_blake3_nfc",
+      "parse_ok": true
+    },
+    {
+      "id": "unknown_tree_algorithm_rejected",
+      "kind": "tree",
+      "tree_algorithm": "merkle_blake3",
+      "parse_ok": false,
+      "error_code": "unsupported_algorithm"
+    }
+  ]
+}

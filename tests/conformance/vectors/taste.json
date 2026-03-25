@@ -1,0 +1,42 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "Taste verdict gate processing rules. Implementations MUST apply these actions when encountering each verdict.",
+  "cases": [
+    {
+      "id": "toxic_blocks",
+      "verdict": "toxic",
+      "expected_action": "block",
+      "description": "Toxic verdict MUST block the operation with a machine-readable error"
+    },
+    {
+      "id": "rotten_warns",
+      "verdict": "rotten",
+      "expected_action": "warn",
+      "description": "Rotten verdict MUST display a warning, then proceed"
+    },
+    {
+      "id": "safe_proceeds",
+      "verdict": "safe",
+      "expected_action": "proceed",
+      "description": "Safe verdict proceeds without warning"
+    },
+    {
+      "id": "fresh_proceeds",
+      "verdict": "fresh",
+      "expected_action": "proceed",
+      "description": "Fresh verdict proceeds without warning"
+    },
+    {
+      "id": "sweet_proceeds",
+      "verdict": "sweet",
+      "expected_action": "proceed",
+      "description": "Sweet verdict proceeds without warning"
+    },
+    {
+      "id": "untasted_blocks",
+      "verdict": null,
+      "expected_action": "block",
+      "description": "No verdict (untasted) MUST block the operation (fail closed)"
+    }
+  ]
+}

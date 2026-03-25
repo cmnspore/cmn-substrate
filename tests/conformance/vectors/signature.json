@@ -1,0 +1,40 @@
+{
+  "version": "cmn-conformance-v1",
+  "cases": [
+    {
+      "id": "valid_signature",
+      "canonical_json": "{\"domain\":\"cmn.dev\",\"name\":\"cmn-spec\",\"synopsis\":\"Code Mycelial Network\"}",
+      "public_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+      "valid": true
+    },
+    {
+      "id": "wrong_key",
+      "canonical_json": "{\"domain\":\"cmn.dev\",\"name\":\"cmn-spec\",\"synopsis\":\"Code Mycelial Network\"}",
+      "public_key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+      "signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+      "valid": false
+    },
+    {
+      "id": "wrong_payload",
+      "canonical_json": "{\"domain\":\"cmn.dev\",\"name\":\"cmn-spec\",\"synopsis\":\"Code Mycelial Network!\"}",
+      "public_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+      "valid": false
+    },
+    {
+      "id": "wrong_signature_prefix",
+      "canonical_json": "{\"domain\":\"cmn.dev\",\"name\":\"cmn-spec\",\"synopsis\":\"Code Mycelial Network\"}",
+      "public_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "signature": "b3.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+      "valid": false
+    },
+    {
+      "id": "wrong_signature_length",
+      "canonical_json": "{\"domain\":\"cmn.dev\",\"name\":\"cmn-spec\",\"synopsis\":\"Code Mycelial Network\"}",
+      "public_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "signature": "ed25519.5Hue",
+      "valid": false
+    }
+  ]
+}

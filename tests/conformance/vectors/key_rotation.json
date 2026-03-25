@@ -1,0 +1,55 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "Key rotation verification scenarios. Tests the key trust model when domains rotate Ed25519 keys.",
+  "cases": [
+    {
+      "id": "current_key_valid",
+      "description": "Content signed with the current active key verifies successfully",
+      "cmn_json": {
+        "key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+        "previous_keys": []
+      },
+      "content_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "expected_trusted": true,
+      "expected_trust_class": "first_class"
+    },
+    {
+      "id": "previous_key_valid",
+      "description": "Content signed with a retired key that is still within the trust TTL verifies successfully",
+      "cmn_json": {
+        "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+        "previous_keys": [
+          {
+            "key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+            "retired_at_epoch_ms": 1710000000000
+          }
+        ]
+      },
+      "content_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "expected_trusted": true,
+      "expected_trust_class": "first_class",
+      "note": "Verification checks current key first, then falls back to previous_keys"
+    },
+    {
+      "id": "unknown_key_untrusted",
+      "description": "Content signed with a key not in current or previous_keys is untrusted",
+      "cmn_json": {
+        "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+        "previous_keys": []
+      },
+      "content_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "expected_trusted": false,
+      "note": "Key is valid Ed25519 but not associated with this domain"
+    },
+    {
+      "id": "synapse_witness_second_class",
+      "description": "When domain is unreachable, Synapse witness provides second-class trust (not cached)",
+      "cmn_json_reachable": false,
+      "synapse_confirms_key": true,
+      "content_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "expected_trusted": true,
+      "expected_trust_class": "second_class",
+      "note": "Second-class trust is NOT cached to disk — must be re-verified each time"
+    }
+  ]
+}

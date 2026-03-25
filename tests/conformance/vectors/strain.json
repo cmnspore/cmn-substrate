@@ -1,0 +1,161 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "05-strain vectors for extends semantics, root-lineage strain detection, and explicit declaration of parent strains.",
+  "cases": [
+    {
+      "id": "strain_definition_extends_root_and_parent",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://strain.dev/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W",
+          "core": {
+            "id": "strain-synapse-search",
+            "name": "strain-synapse-search",
+            "domain": "strain.dev",
+            "key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+            "synopsis": "Child search strain",
+            "intent": ["Extends the Synapse strain with search behavior"],
+            "license": "MIT",
+            "mutations": ["Adds search endpoints"],
+            "size_bytes": 12288,
+            "updated_at_epoch_ms": 1701000000000,
+            "bonds": [
+              {
+                "relation": "extends",
+                "uri": "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+              },
+              {
+                "relation": "extends",
+                "uri": "cmn://strain.dev/b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq"
+              }
+            ],
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            }
+          },
+          "core_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt"
+      },
+      "accepted_root_lineage_uris": [
+        "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+      ],
+      "required_extends": [
+        "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+        "cmn://strain.dev/b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq"
+      ],
+      "expected_extended_uris": [
+        "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+        "cmn://strain.dev/b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq"
+      ],
+      "expected_is_strain_definition": true,
+      "expected_extends_all": true
+    },
+    {
+      "id": "follower_is_not_strain_definition",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://app.dev/b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq",
+          "core": {
+            "id": "my-chat-bot",
+            "name": "my-chat-bot",
+            "domain": "app.dev",
+            "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+            "synopsis": "Follower implementation",
+            "intent": ["Implements a child strain"],
+            "license": "MIT",
+            "mutations": [],
+            "size_bytes": 4096,
+            "updated_at_epoch_ms": 1702000000000,
+            "bonds": [
+              {
+                "relation": "follows",
+                "uri": "cmn://strain.dev/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W"
+              }
+            ],
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            }
+          },
+          "core_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt"
+      },
+      "accepted_root_lineage_uris": [
+        "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+      ],
+      "required_extends": [
+        "cmn://strain.dev/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W"
+      ],
+      "expected_extended_uris": [],
+      "expected_is_strain_definition": false,
+      "expected_extends_all": false
+    },
+    {
+      "id": "explicit_parent_declaration_required",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://strain.dev/b3.7kLmN2pQrS4tUvWx8yZaB3cD5eF6gH9iJ1kL2mN3o",
+          "core": {
+            "id": "strain-account-pow",
+            "name": "strain-account-pow",
+            "domain": "strain.dev",
+            "key": "ed25519.2p3NPZceQ6njbPg8aMFsEynX3Cmv6uCt1XMGHhPcL4AT",
+            "synopsis": "Child strain missing parent extends",
+            "intent": ["Declares root lineage but omits direct parent extends"],
+            "license": "MIT",
+            "mutations": [],
+            "size_bytes": 6144,
+            "updated_at_epoch_ms": 1703000000000,
+            "bonds": [
+              {
+                "relation": "extends",
+                "uri": "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+              }
+            ],
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            }
+          },
+          "core_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt"
+      },
+      "accepted_root_lineage_uris": [
+        "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+      ],
+      "required_extends": [
+        "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+        "cmn://strain.dev/b3.accountParent"
+      ],
+      "expected_extended_uris": [
+        "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+      ],
+      "expected_is_strain_definition": true,
+      "expected_extends_all": false
+    }
+  ]
+}

@@ -19,12 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Checkout cmn-spec (conformance vectors)
-        uses: actions/checkout@v4
-        with:
-          repository: cmnspore/cmn-spec
-          path: ${{ github.workspace }}/cmn-spec
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 

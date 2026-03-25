@@ -1,0 +1,151 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "03-spore vectors for typed distribution handling, spawned_from lineage helpers, and follows bond semantics.",
+  "cases": [
+    {
+      "id": "spawned_from_archive_and_git",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://example.com/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W",
+          "core": {
+            "id": "search-strain",
+            "name": "Search Strain",
+            "domain": "example.com",
+            "key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+            "synopsis": "Search convention",
+            "intent": ["Defines search behavior"],
+            "license": "MIT",
+            "mutations": ["Added search endpoint requirements"],
+            "size_bytes": 24576,
+            "updated_at_epoch_ms": 1700000000000,
+            "bonds": [
+              {
+                "relation": "follows",
+                "uri": "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2"
+              },
+              {
+                "relation": "spawned_from",
+                "uri": "cmn://parent.dev/b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq"
+              },
+              {
+                "relation": "follows",
+                "uri": "cmn://strain.dev/b3.7kLmN2pQrS4tUvWx8yZaB3cD5eF6gH9iJ1kL2mN3o",
+                "id": "strain-parent",
+                "reason": "Child strain inherits parent requirements"
+              }
+            ],
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [".git", ".cmn"],
+              "follow_rules": [".gitignore"]
+            }
+          },
+          "core_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+          "dist": [
+            {
+              "type": "archive"
+            },
+            {
+              "type": "git",
+              "url": "https://github.com/example/search-strain.git",
+              "ref": "main"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt"
+      },
+      "cmn": {
+        "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "protocol_versions": ["v1"],
+        "capsules": [
+          {
+            "uri": "cmn://example.com",
+            "key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+            "previous_keys": [],
+            "endpoints": [
+              {
+                "type": "archive",
+                "url": "https://example.com/cmn/archive/{hash}.tar.zst",
+                "format": "tar+zstd",
+                "delta_url": "https://example.com/cmn/archive/{hash}.from.{old_hash}.tar.zst"
+              }
+            ]
+          }
+        ],
+        "capsule_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt"
+      },
+      "expected_uri": "cmn://example.com/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W",
+      "expected_domain": "example.com",
+      "expected_timestamp_ms": 1700000000000,
+      "expected_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "expected_spawned_from_uri": "cmn://parent.dev/b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq",
+      "expected_spawned_from_hash": "b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq",
+      "expected_dist_types": ["archive", "git"],
+      "expected_followed_uris": [
+        "cmn://root.dev/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+        "cmn://strain.dev/b3.7kLmN2pQrS4tUvWx8yZaB3cD5eF6gH9iJ1kL2mN3o"
+      ],
+      "expected_git_url": "https://github.com/example/search-strain.git",
+      "expected_git_ref": "main",
+      "resolve_hash": "b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W",
+      "resolve_old_hash": "b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq",
+      "expected_archive_url": "https://example.com/cmn/archive/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W.tar.zst",
+      "expected_archive_delta_url": "https://example.com/cmn/archive/b3.BMjugPDk6SFJiCLvTTWJtbD6LxSmhw6KBbXQh7Lixv5W.from.b3.Bp7WKXh4Rxx2jyu5taj2aeMorH5YLT4R8DF5rWq7jZjq.tar.zst"
+    },
+    {
+      "id": "extension_dist_types_preserved",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://downloads.dev/b3.7kLmN2pQrS4tUvWx8yZaB3cD5eF6gH9iJ1kL2mN3o",
+          "core": {
+            "id": "downloads-bundle",
+            "name": "Downloads Bundle",
+            "domain": "downloads.dev",
+            "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+            "synopsis": "Distribution bundle",
+            "intent": ["Ships content via custom transports"],
+            "license": "Apache-2.0",
+            "mutations": [],
+            "size_bytes": 8192,
+            "updated_at_epoch_ms": 1705000000000,
+            "bonds": [],
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            }
+          },
+          "core_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt",
+          "dist": [
+            {
+              "type": "s3",
+              "url": "https://downloads.dev/spore/{hash}.zip"
+            },
+            {
+              "type": "ipfs",
+              "cid": "ipfs://bafybeigdyrzt5m4examplecid"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.2516gWpCkSrPZCyGf9THtxuv6Fq7hEPxdbM5CT6mCvBN2bUMcZ8d6xv7vjAFuBervBpPpBLZUj4i7ZtkSrF1onXt"
+      },
+      "cmn": null,
+      "expected_uri": "cmn://downloads.dev/b3.7kLmN2pQrS4tUvWx8yZaB3cD5eF6gH9iJ1kL2mN3o",
+      "expected_domain": "downloads.dev",
+      "expected_timestamp_ms": 1705000000000,
+      "expected_key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+      "expected_spawned_from_uri": null,
+      "expected_spawned_from_hash": null,
+      "expected_dist_types": ["s3", "ipfs"],
+      "expected_followed_uris": [],
+      "expected_git_url": null,
+      "expected_git_ref": null,
+      "resolve_hash": null,
+      "resolve_old_hash": null,
+      "expected_archive_url": null,
+      "expected_archive_delta_url": null
+    }
+  ]
+}
