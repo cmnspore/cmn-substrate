@@ -223,14 +223,113 @@ struct AlgorithmRegistryCase {
     error_code: Option<String>,
 }
 
-fn conformance_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/conformance")
+fn parse_vectors<T: DeserializeOwned>(json: &str) -> Result<T> {
+    serde_json::from_str::<T>(json).context("Failed to parse conformance vector")
 }
 
-fn load_vector_file<T: DeserializeOwned>(path: &Path) -> Result<T> {
-    let bytes = fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?;
-    serde_json::from_slice::<T>(&bytes)
-        .with_context(|| format!("Failed to parse {}", path.display()))
+/// All vector files that are included in the test binary.
+/// Must match the "vectors" keys in manifest.json exactly.
+const INCLUDED_VECTORS: &[&str] = &[
+    "algorithm_registry",
+    "blob_tree_blake3_nfc",
+    "bond_traversal",
+    "capsule",
+    "key_rotation",
+    "mycelium",
+    "signature",
+    "spore",
+    "strain",
+    "substrate",
+    "taste",
+    "taste_gating",
+    "uri",
+];
+
+#[test]
+fn conformance_manifest_integrity() -> Result<()> {
+    let manifest: Value = serde_json::from_str(include_str!("conformance/manifest.json"))?;
+
+    let version = manifest["version"]
+        .as_str()
+        .ok_or_else(|| anyhow!("manifest missing 'version'"))?;
+    assert_eq!(version, "cmn-conformance-v1");
+
+    let vectors = manifest["vectors"]
+        .as_object()
+        .ok_or_else(|| anyhow!("manifest missing 'vectors' map"))?;
+
+    // Manifest keys must match our included list
+    let mut manifest_keys: Vec<&str> = vectors.keys().map(|s| s.as_str()).collect();
+    manifest_keys.sort();
+    assert_eq!(
+        manifest_keys, INCLUDED_VECTORS,
+        "manifest keys differ from INCLUDED_VECTORS — update one or the other"
+    );
+
+    // Each manifest entry must point to vectors/<key>.json and key must match stem
+    for (name, path_val) in vectors {
+        let path = path_val
+            .as_str()
+            .ok_or_else(|| anyhow!("manifest entry '{name}' is not a string"))?;
+        let expected = format!("vectors/{name}.json");
+        assert_eq!(
+            path, expected,
+            "manifest entry '{name}' has unexpected path"
+        );
+    }
+
+    // Verify each included vector file has matching version
+    let vector_jsons: &[(&str, &str)] = &[
+        (
+            "algorithm_registry",
+            include_str!("conformance/vectors/algorithm_registry.json"),
+        ),
+        (
+            "blob_tree_blake3_nfc",
+            include_str!("conformance/vectors/blob_tree_blake3_nfc.json"),
+        ),
+        (
+            "bond_traversal",
+            include_str!("conformance/vectors/bond_traversal.json"),
+        ),
+        ("capsule", include_str!("conformance/vectors/capsule.json")),
+        (
+            "key_rotation",
+            include_str!("conformance/vectors/key_rotation.json"),
+        ),
+        (
+            "mycelium",
+            include_str!("conformance/vectors/mycelium.json"),
+        ),
+        (
+            "signature",
+            include_str!("conformance/vectors/signature.json"),
+        ),
+        ("spore", include_str!("conformance/vectors/spore.json")),
+        ("strain", include_str!("conformance/vectors/strain.json")),
+        (
+            "substrate",
+            include_str!("conformance/vectors/substrate.json"),
+        ),
+        ("taste", include_str!("conformance/vectors/taste.json")),
+        (
+            "taste_gating",
+            include_str!("conformance/vectors/taste_gating.json"),
+        ),
+        ("uri", include_str!("conformance/vectors/uri.json")),
+    ];
+    for (name, json) in vector_jsons {
+        let val: Value =
+            serde_json::from_str(json).with_context(|| format!("{name}.json is not valid JSON"))?;
+        let v = val["version"].as_str().unwrap_or("");
+        assert_eq!(v, version, "{name}.json version mismatch");
+        assert!(
+            val["cases"].as_array().is_some_and(|a| !a.is_empty()),
+            "{name}.json must have non-empty 'cases'"
+        );
+    }
+
+    Ok(())
 }
 
 fn normalize_uri(parsed: &substrate::CmnUri) -> Result<String> {
@@ -519,7 +618,7 @@ fn build_bond_graph(case: &BondTraversalCase) -> Result<Vec<BondGraphNode>> {
 #[test]
 fn conformance_signature_vectors() -> Result<()> {
     let file: VectorFile<SignatureCase> =
-        load_vector_file(&conformance_dir().join("vectors/signature.json"))?;
+        parse_vectors(include_str!("conformance/vectors/signature.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -542,7 +641,7 @@ fn conformance_signature_vectors() -> Result<()> {
 
 #[test]
 fn conformance_uri_vectors() -> Result<()> {
-    let file: VectorFile<UriCase> = load_vector_file(&conformance_dir().join("vectors/uri.json"))?;
+    let file: VectorFile<UriCase> = parse_vectors(include_str!("conformance/vectors/uri.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -577,8 +676,9 @@ fn conformance_uri_vectors() -> Result<()> {
 
 #[test]
 fn conformance_blob_tree_blake3_nfc_vectors() -> Result<()> {
-    let file: VectorFile<BlobTreeBlake3NfcCase> =
-        load_vector_file(&conformance_dir().join("vectors/blob_tree_blake3_nfc.json"))?;
+    let file: VectorFile<BlobTreeBlake3NfcCase> = parse_vectors(include_str!(
+        "conformance/vectors/blob_tree_blake3_nfc.json"
+    ))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -671,7 +771,7 @@ fn conformance_blob_tree_blake3_nfc_vectors() -> Result<()> {
 #[test]
 fn conformance_capsule_vectors() -> Result<()> {
     let file: VectorFile<CapsuleCase> =
-        load_vector_file(&conformance_dir().join("vectors/capsule.json"))?;
+        parse_vectors(include_str!("conformance/vectors/capsule.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -715,7 +815,7 @@ fn conformance_capsule_vectors() -> Result<()> {
 #[test]
 fn conformance_key_rotation_vectors() -> Result<()> {
     let file: VectorFile<KeyRotationCase> =
-        load_vector_file(&conformance_dir().join("vectors/key_rotation.json"))?;
+        parse_vectors(include_str!("conformance/vectors/key_rotation.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -763,7 +863,7 @@ fn conformance_key_rotation_vectors() -> Result<()> {
 #[test]
 fn conformance_substrate_vectors() -> Result<()> {
     let file: VectorFile<SubstrateCase> =
-        load_vector_file(&conformance_dir().join("vectors/substrate.json"))?;
+        parse_vectors(include_str!("conformance/vectors/substrate.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -899,7 +999,7 @@ fn conformance_substrate_vectors() -> Result<()> {
 #[test]
 fn conformance_mycelium_vectors() -> Result<()> {
     let file: VectorFile<MyceliumCase> =
-        load_vector_file(&conformance_dir().join("vectors/mycelium.json"))?;
+        parse_vectors(include_str!("conformance/vectors/mycelium.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -974,7 +1074,7 @@ fn conformance_mycelium_vectors() -> Result<()> {
 #[test]
 fn conformance_spore_vectors() -> Result<()> {
     let file: VectorFile<SporeCase> =
-        load_vector_file(&conformance_dir().join("vectors/spore.json"))?;
+        parse_vectors(include_str!("conformance/vectors/spore.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -1104,7 +1204,7 @@ fn conformance_spore_vectors() -> Result<()> {
 #[test]
 fn conformance_strain_vectors() -> Result<()> {
     let file: VectorFile<StrainCase> =
-        load_vector_file(&conformance_dir().join("vectors/strain.json"))?;
+        parse_vectors(include_str!("conformance/vectors/strain.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -1152,7 +1252,7 @@ fn conformance_strain_vectors() -> Result<()> {
 #[test]
 fn conformance_algorithm_registry_vectors() -> Result<()> {
     let file: VectorFile<AlgorithmRegistryCase> =
-        load_vector_file(&conformance_dir().join("vectors/algorithm_registry.json"))?;
+        parse_vectors(include_str!("conformance/vectors/algorithm_registry.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -1305,7 +1405,7 @@ fn conformance_algorithm_registry_vectors() -> Result<()> {
 #[test]
 fn conformance_taste_vectors() -> Result<()> {
     let file: VectorFile<TasteCase> =
-        load_vector_file(&conformance_dir().join("vectors/taste.json"))?;
+        parse_vectors(include_str!("conformance/vectors/taste.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -1323,7 +1423,7 @@ fn conformance_taste_vectors() -> Result<()> {
 #[test]
 fn conformance_taste_gating_vectors() -> Result<()> {
     let file: VectorFile<TasteGatingCase> =
-        load_vector_file(&conformance_dir().join("vectors/taste_gating.json"))?;
+        parse_vectors(include_str!("conformance/vectors/taste_gating.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
@@ -1341,7 +1441,7 @@ fn conformance_taste_gating_vectors() -> Result<()> {
 #[test]
 fn conformance_bond_traversal_vectors() -> Result<()> {
     let file: VectorFile<BondTraversalCase> =
-        load_vector_file(&conformance_dir().join("vectors/bond_traversal.json"))?;
+        parse_vectors(include_str!("conformance/vectors/bond_traversal.json"))?;
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {

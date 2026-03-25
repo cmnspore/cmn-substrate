@@ -8,6 +8,7 @@ repository = "https://github.com/cmnspore/cmn-substrate"
 readme = "README.md"
 keywords = ["cmn", "content-addressing", "ed25519", "blake3", "merkle-tree"]
 categories = ["cryptography", "data-structures"]
+exclude = [".github/", "tests/conformance/"]
 
 [features]
 default = []
