@@ -34,4 +34,6 @@ pub use uri::{
     normalize_and_validate_url, normalize_taste_target_uri, parse_uri, validate_domain, CmnUri,
     CmnUriKind,
 };
-pub use util::{local_dir_name, validate_timestamp_not_future};
+pub use util::{
+    compare_version_timestamps, local_dir_name, validate_timestamp_not_future, VersionOrder,
+};

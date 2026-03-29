@@ -37,6 +37,30 @@ pub fn local_dir_name(id: Option<&str>, name: Option<&str>, hash: &str) -> Strin
         .unwrap_or_else(|| hash.to_string())
 }
 
+// -- Version comparison --
+
+/// Result of comparing two timestamps for version ordering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VersionOrder {
+    /// The incoming timestamp is strictly newer.
+    Newer,
+    /// Both timestamps are identical.
+    Same,
+    /// The incoming timestamp is older.
+    Older,
+}
+
+/// Compare an incoming timestamp against an existing one for version ordering.
+///
+/// CMN uses strictly-newer semantics: content is only accepted when `incoming > existing`.
+pub fn compare_version_timestamps(incoming_epoch_ms: u64, existing_epoch_ms: u64) -> VersionOrder {
+    match incoming_epoch_ms.cmp(&existing_epoch_ms) {
+        std::cmp::Ordering::Greater => VersionOrder::Newer,
+        std::cmp::Ordering::Equal => VersionOrder::Same,
+        std::cmp::Ordering::Less => VersionOrder::Older,
+    }
+}
+
 // -- Timestamp validation --
 
 pub fn validate_timestamp_not_future(

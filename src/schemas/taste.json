@@ -66,12 +66,8 @@
     },
     "taste_core": {
       "type": "object",
-      "required": ["target_uri", "domain", "key", "verdict", "tasted_at_epoch_ms"],
+      "required": ["domain", "key", "target_uri", "verdict", "tasted_at_epoch_ms"],
       "properties": {
-        "target_uri": {
-          "$ref": "#/$defs/target_uri",
-          "description": "Full CMN URI of the target being tasted (domain/spore/mycelium)"
-        },
         "domain": {
           "type": "string",
           "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
@@ -81,6 +77,10 @@
           "type": "string",
           "pattern": "^ed25519\\.[1-9A-HJ-NP-Za-km-z]+$",
           "description": "Taster's public key embedded at release time. Enables offline verification without fetching cmn.json."
+        },
+        "target_uri": {
+          "$ref": "#/$defs/target_uri",
+          "description": "Full CMN URI of the target being tasted (domain/spore/mycelium)"
         },
         "verdict": {
           "type": "string",

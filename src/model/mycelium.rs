@@ -162,6 +162,11 @@ impl Mycelium {
         self.verify_capsule_signature(host_key)
     }
 
+    /// Verify both signatures using the same key (self-hosted case where host == author).
+    pub fn verify_self_hosted_signatures(&self, key: &str) -> Result<()> {
+        self.verify_signatures(key, key)
+    }
+
     pub fn computed_uri_hash(&self) -> Result<String> {
         crate::crypto::hash::compute_signed_core_hash(
             &self.capsule.core,

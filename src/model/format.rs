@@ -144,9 +144,9 @@ const MYCELIUM_TASTE_KEY_ORDER: &[&str] = &["hash", "target_uri"];
 const TASTE_TOP_KEY_ORDER: &[&str] = &["$schema", "capsule", "capsule_signature"];
 const TASTE_CAPSULE_KEY_ORDER: &[&str] = &["uri", "core", "core_signature"];
 const TASTE_CORE_KEY_ORDER: &[&str] = &[
-    "target_uri",
     "domain",
     "key",
+    "target_uri",
     "verdict",
     "notes",
     "tasted_at_epoch_ms",

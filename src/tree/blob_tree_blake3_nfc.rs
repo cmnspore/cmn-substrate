@@ -3,6 +3,8 @@
 //! This algorithm uses Git-like blob/tree object construction, BLAKE3 hashing,
 //! and NFC filename normalization for cross-platform stability.
 
+use std::collections::HashSet;
+
 use anyhow::{anyhow, Result};
 use unicode_normalization::UnicodeNormalization;
 
@@ -92,6 +94,7 @@ pub fn compute_hash_and_size_from_entries(
 
 fn hash_entries(entries: &[TreeEntry], exclude_names: &[String]) -> Result<([u8; HASH_SIZE], u64)> {
     let mut tree_entries = Vec::new();
+    let mut seen_names = HashSet::new();
     let mut total_size: u64 = 0;
 
     for entry in entries {
@@ -123,11 +126,7 @@ fn hash_entries(entries: &[TreeEntry], exclude_names: &[String]) -> Result<([u8;
         };
 
         let normalized_name = normalize_filename(raw_name);
-        if tree_entries.iter().any(
-            |(_, existing_name, _): &(String, String, [u8; HASH_SIZE])| {
-                existing_name == &normalized_name
-            },
-        ) {
+        if !seen_names.insert(normalized_name.clone()) {
             return Err(anyhow!(
                 "Filename conflict after NFC normalization: {} (multiple files normalize to same name)",
                 raw_name

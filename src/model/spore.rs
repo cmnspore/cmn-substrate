@@ -292,6 +292,42 @@ pub struct SporeBond {
     pub with: Option<Value>,
 }
 
+impl SporeBond {
+    /// Check if this bond matches a (relation, uri) filter pair.
+    pub fn matches_filter(&self, relation: &BondRelation, uri: &str) -> bool {
+        &self.relation == relation && self.uri == uri
+    }
+}
+
+/// Lightweight bond projection containing only relation and URI.
+///
+/// Used by indexers and storage layers that don't need the full bond metadata
+/// (id, reason, with). Avoids repeated manual extraction of these two fields.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BondProjection {
+    pub uri: String,
+    pub relation: BondRelation,
+}
+
+impl From<&SporeBond> for BondProjection {
+    fn from(bond: &SporeBond) -> Self {
+        Self {
+            uri: bond.uri.clone(),
+            relation: bond.relation.clone(),
+        }
+    }
+}
+
+/// Check if all required bond filters are satisfied by the given bonds.
+///
+/// Each filter is a (relation, uri) pair. Returns true only if every filter
+/// matches at least one bond in the slice.
+pub fn bonds_match_all(bonds: &[SporeBond], filters: &[(BondRelation, String)]) -> bool {
+    filters
+        .iter()
+        .all(|(rel, uri)| bonds.iter().any(|b| b.matches_filter(rel, uri)))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BondTraversalDirection {
@@ -334,6 +370,51 @@ pub const MAX_BOND_DEPTH: u32 = 64;
 impl BondTraversalQuery {
     fn default_max_depth() -> u32 {
         1
+    }
+}
+
+/// Result of a generic BFS traversal.
+#[derive(Debug, Clone)]
+pub struct BfsResult<T> {
+    pub nodes: Vec<T>,
+    pub max_depth_reached: bool,
+}
+
+/// Generic synchronous BFS traversal.
+///
+/// Starting from `start`, calls `neighbors_fn(current_id, current_depth)` to discover
+/// neighbors. Each neighbor is represented as `(neighbor_id, node_data)`.
+/// The `node_data` of type `T` is collected into the result.
+///
+/// Handles cycle detection via `HashSet` and enforces `max_depth`.
+pub fn bfs_traverse<T, F>(start: &str, max_depth: u32, mut neighbors_fn: F) -> BfsResult<T>
+where
+    F: FnMut(&str, u32) -> Vec<(String, T)>,
+{
+    let mut visited = HashSet::new();
+    let mut queue = VecDeque::new();
+    let mut results = Vec::new();
+    let mut depth_reached = false;
+
+    visited.insert(start.to_string());
+    queue.push_back((start.to_string(), 0u32));
+
+    while let Some((current, depth)) = queue.pop_front() {
+        if depth >= max_depth {
+            depth_reached = true;
+            continue;
+        }
+        for (neighbor_id, node_data) in neighbors_fn(&current, depth) {
+            if visited.insert(neighbor_id.clone()) {
+                results.push(node_data);
+                queue.push_back((neighbor_id, depth + 1));
+            }
+        }
+    }
+
+    BfsResult {
+        nodes: results,
+        max_depth_reached: depth_reached,
     }
 }
 
@@ -463,6 +544,22 @@ impl Spore {
         (!key.is_empty()).then_some(key)
     }
 
+    /// Returns the effective author key: the embedded `core.key` if present,
+    /// otherwise falls back to the given host key.
+    pub fn effective_author_key<'a>(&'a self, host_key: &'a str) -> &'a str {
+        self.embedded_core_key().unwrap_or(host_key)
+    }
+
+    /// Extract lightweight bond projections from this spore's bonds.
+    pub fn extract_bonds(&self) -> Vec<BondProjection> {
+        self.capsule
+            .core
+            .bonds
+            .iter()
+            .map(BondProjection::from)
+            .collect()
+    }
+
     pub fn tree(&self) -> &SporeTree {
         &self.capsule.core.tree
     }
@@ -547,6 +644,11 @@ impl Spore {
     pub fn verify_signatures(&self, host_key: &str, author_key: &str) -> Result<()> {
         self.verify_core_signature(author_key)?;
         self.verify_capsule_signature(host_key)
+    }
+
+    /// Verify both signatures using the same key (self-hosted case where host == author).
+    pub fn verify_self_hosted_signatures(&self, key: &str) -> Result<()> {
+        self.verify_signatures(key, key)
     }
 
     pub fn computed_uri_hash_from_tree_hash(&self, tree_hash: &str) -> Result<String> {

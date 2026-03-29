@@ -8,7 +8,10 @@ mod zstd_codec;
 
 pub use zstd_codec::*;
 
+use std::collections::BTreeMap;
 use std::io::{Cursor, Read};
+
+use crate::tree::TreeEntry;
 
 /// Limits for archive extraction to prevent resource exhaustion.
 pub struct ExtractLimits {
@@ -181,4 +184,300 @@ pub fn extract_tar_zstd(
 ) -> Result<Vec<ArchiveEntry>, ExtractError> {
     let tar_bytes = decode_zstd(compressed, limits.max_bytes)?;
     extract_tar(&tar_bytes, limits)
+}
+
+// ---------------------------------------------------------------------------
+// Archive → TreeEntry conversion
+// ---------------------------------------------------------------------------
+
+/// Convert flat `ArchiveEntry` list into a nested `TreeEntry` tree.
+///
+/// Only file entries are included (directories are inferred from paths).
+/// Leading `./` and `/` are stripped. All files are marked non-executable.
+pub fn archive_entries_to_tree(entries: &[ArchiveEntry]) -> Vec<TreeEntry> {
+    entries_to_tree_inner(
+        entries
+            .iter()
+            .filter_map(|e| {
+                if e.kind != EntryKind::File {
+                    return None;
+                }
+                let path = e.path.trim_start_matches("./").trim_start_matches('/');
+                if path.is_empty() {
+                    return None;
+                }
+                Some((path, e.data.as_slice()))
+            })
+            .collect(),
+    )
+}
+
+fn entries_to_tree_inner(files: Vec<(&str, &[u8])>) -> Vec<TreeEntry> {
+    let mut root_files: Vec<TreeEntry> = Vec::new();
+    let mut subdirs: BTreeMap<&str, Vec<(&str, &[u8])>> = BTreeMap::new();
+
+    for (path, data) in files {
+        if let Some(idx) = path.find('/') {
+            let dir_name = &path[..idx];
+            let rest = &path[idx + 1..];
+            if !rest.is_empty() {
+                subdirs.entry(dir_name).or_default().push((rest, data));
+            }
+        } else {
+            root_files.push(TreeEntry::File {
+                name: path.to_string(),
+                content: data.to_vec(),
+                executable: false,
+            });
+        }
+    }
+
+    let mut result: Vec<TreeEntry> = subdirs
+        .into_iter()
+        .map(|(dir_name, children)| TreeEntry::Directory {
+            name: dir_name.to_string(),
+            children: entries_to_tree_inner(children),
+        })
+        .collect();
+
+    result.extend(root_files);
+    result
+}
+
+/// Consuming variant — moves file data into `TreeEntry` without cloning.
+///
+/// Use this when archive entries are not needed after tree construction.
+pub fn archive_entries_into_tree(entries: Vec<ArchiveEntry>) -> Vec<TreeEntry> {
+    entries_into_tree_inner(
+        entries
+            .into_iter()
+            .filter_map(|e| {
+                if e.kind != EntryKind::File {
+                    return None;
+                }
+                let path = e
+                    .path
+                    .trim_start_matches("./")
+                    .trim_start_matches('/')
+                    .to_string();
+                if path.is_empty() {
+                    return None;
+                }
+                Some((path, e.data))
+            })
+            .collect(),
+    )
+}
+
+fn entries_into_tree_inner(files: Vec<(String, Vec<u8>)>) -> Vec<TreeEntry> {
+    let mut root_files: Vec<TreeEntry> = Vec::new();
+    let mut subdirs: BTreeMap<String, Vec<(String, Vec<u8>)>> = BTreeMap::new();
+
+    for (path, data) in files {
+        if let Some(idx) = path.find('/') {
+            let dir_name = path[..idx].to_string();
+            let rest = path[idx + 1..].to_string();
+            if !rest.is_empty() {
+                subdirs.entry(dir_name).or_default().push((rest, data));
+            }
+        } else {
+            root_files.push(TreeEntry::File {
+                name: path,
+                content: data,
+                executable: false,
+            });
+        }
+    }
+
+    let mut result: Vec<TreeEntry> = subdirs
+        .into_iter()
+        .map(|(dir_name, children)| TreeEntry::Directory {
+            name: dir_name,
+            children: entries_into_tree_inner(children),
+        })
+        .collect();
+
+    result.extend(root_files);
+    result
+}
+
+// ---------------------------------------------------------------------------
+// Extract + verify pipeline
+// ---------------------------------------------------------------------------
+
+/// Extract a tar.zst archive, verify content hash against a spore, and return
+/// the verified entries.
+///
+/// This is the standard pipeline for consuming a spore archive:
+/// 1. Decompress zstd + unpack tar (with security checks)
+/// 2. Build in-memory tree from extracted files
+/// 3. Verify tree hash matches the spore's content hash
+///
+/// The spore's declared `size_bytes` is used as an additional decompression limit
+/// to prevent malicious archives from expanding beyond the expected size.
+///
+/// Returns the raw `ArchiveEntry` list on success (caller decides how to store).
+/// Returns `ExtractError` if extraction, security checks, or hash verification fails.
+pub fn extract_and_verify_tar_zstd(
+    archive_bytes: &[u8],
+    spore: &crate::Spore,
+    expected_hash: &str,
+    limits: &ExtractLimits,
+) -> Result<Vec<ArchiveEntry>, ExtractError> {
+    // Use the spore's declared size as an additional decompression limit.
+    // Add 10% headroom for tar headers and metadata overhead.
+    let spore_size = spore.capsule.core.size_bytes;
+    let spore_limit = if spore_size > 0 {
+        spore_size
+            .saturating_add(spore_size / 10)
+            .saturating_add(4096)
+    } else {
+        limits.max_bytes
+    };
+    let effective_limits = ExtractLimits {
+        max_bytes: limits.max_bytes.min(spore_limit),
+        max_files: limits.max_files,
+        max_file_bytes: limits.max_file_bytes,
+    };
+
+    let entries = extract_tar_zstd(archive_bytes, &effective_limits)?;
+    let tree = archive_entries_to_tree(&entries);
+    spore
+        .verify_content_hash(&tree, expected_hash)
+        .map_err(|e| ExtractError::Failed(format!("content hash mismatch: {e}")))?;
+    Ok(entries)
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn entries_to_tree_single_file() {
+        let entries = vec![ArchiveEntry {
+            path: "README.md".to_string(),
+            kind: EntryKind::File,
+            data: b"# hello".to_vec(),
+        }];
+        let tree = archive_entries_to_tree(&entries);
+        assert_eq!(tree.len(), 1);
+        match &tree[0] {
+            TreeEntry::File { name, content, .. } => {
+                assert_eq!(name, "README.md");
+                assert_eq!(content, b"# hello");
+            }
+            _ => panic!("expected file"),
+        }
+    }
+
+    #[test]
+    fn entries_to_tree_nested() {
+        let entries = vec![
+            ArchiveEntry {
+                path: "src/main.rs".into(),
+                kind: EntryKind::File,
+                data: b"fn main(){}".to_vec(),
+            },
+            ArchiveEntry {
+                path: "src/lib.rs".into(),
+                kind: EntryKind::File,
+                data: b"//lib".to_vec(),
+            },
+            ArchiveEntry {
+                path: "README.md".into(),
+                kind: EntryKind::File,
+                data: b"hi".to_vec(),
+            },
+        ];
+        let tree = archive_entries_to_tree(&entries);
+        assert_eq!(tree.len(), 2); // src/ dir + README.md
+        match &tree[0] {
+            TreeEntry::Directory { name, children } => {
+                assert_eq!(name, "src");
+                assert_eq!(children.len(), 2);
+            }
+            _ => panic!("expected directory"),
+        }
+    }
+
+    #[test]
+    fn entries_to_tree_skips_directories() {
+        let entries = vec![
+            ArchiveEntry {
+                path: "src/".into(),
+                kind: EntryKind::Directory,
+                data: vec![],
+            },
+            ArchiveEntry {
+                path: "src/main.rs".into(),
+                kind: EntryKind::File,
+                data: b"fn main(){}".to_vec(),
+            },
+        ];
+        let tree = archive_entries_to_tree(&entries);
+        assert_eq!(tree.len(), 1);
+        match &tree[0] {
+            TreeEntry::Directory { name, children } => {
+                assert_eq!(name, "src");
+                assert_eq!(children.len(), 1);
+            }
+            _ => panic!("expected directory"),
+        }
+    }
+
+    #[test]
+    fn entries_to_tree_strips_dot_slash() {
+        let entries = vec![ArchiveEntry {
+            path: "./README.md".into(),
+            kind: EntryKind::File,
+            data: b"hi".to_vec(),
+        }];
+        let tree = archive_entries_to_tree(&entries);
+        assert_eq!(tree.len(), 1);
+        match &tree[0] {
+            TreeEntry::File { name, .. } => assert_eq!(name, "README.md"),
+            _ => panic!("expected file"),
+        }
+    }
+
+    #[test]
+    fn entries_to_tree_deeply_nested() {
+        let entries = vec![ArchiveEntry {
+            path: "a/b/c/d.txt".into(),
+            kind: EntryKind::File,
+            data: b"deep".to_vec(),
+        }];
+        let tree = archive_entries_to_tree(&entries);
+        assert_eq!(tree.len(), 1);
+        match &tree[0] {
+            TreeEntry::Directory { name, children } => {
+                assert_eq!(name, "a");
+                assert_eq!(children.len(), 1);
+                match &children[0] {
+                    TreeEntry::Directory { name, children } => {
+                        assert_eq!(name, "b");
+                        match &children[0] {
+                            TreeEntry::Directory { name, children } => {
+                                assert_eq!(name, "c");
+                                match &children[0] {
+                                    TreeEntry::File { name, content, .. } => {
+                                        assert_eq!(name, "d.txt");
+                                        assert_eq!(content, b"deep");
+                                    }
+                                    _ => panic!("expected file"),
+                                }
+                            }
+                            _ => panic!("expected directory"),
+                        }
+                    }
+                    _ => panic!("expected directory"),
+                }
+            }
+            _ => panic!("expected directory"),
+        }
+    }
 }

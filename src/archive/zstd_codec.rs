@@ -45,7 +45,7 @@ fn decode_zstd_with_dict_impl(
 
 #[cfg(all(feature = "archive-ruzstd", not(feature = "archive-zstd")))]
 fn decode_zstd_impl(compressed: &[u8], max_bytes: u64) -> Result<Vec<u8>, ExtractError> {
-    let mut decoder = ruzstd::streaming_decoder::StreamingDecoder::new(compressed)
+    let mut decoder = ruzstd::decoding::StreamingDecoder::new(compressed)
         .map_err(|e| ExtractError::Failed(format!("Failed to create ruzstd decoder: {}", e)))?;
     read_with_limit(&mut decoder, max_bytes)
 }
