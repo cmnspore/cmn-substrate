@@ -35,6 +35,30 @@
       "public_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
       "signature": "ed25519.5Hue",
       "valid": false
+    },
+    {
+      "id": "unicode_nfc_json_string_valid",
+      "description": "JCS signs JSON string bytes as-is; this vector uses precomposed é.",
+      "canonical_json": "{\"name\":\"caf\\u00e9\"}",
+      "public_key": "ed25519.8mWknTQZXhPt3MvJPS6a1wJAaVqzWnT2Xn7UffTujS5K",
+      "signature": "ed25519.62g4LaEHQok24a2VvqBPBoYxm9H8WNhXaMgGYdYxZ2pVZu7MD9tfGtqX4PJwNXPUfQeWsBCdQB7D9Xo4Sw9abQZk",
+      "valid": true
+    },
+    {
+      "id": "unicode_nfd_json_string_valid",
+      "description": "JCS does not normalize JSON strings; decomposed e + combining acute has a different valid signature.",
+      "canonical_json": "{\"name\":\"cafe\\u0301\"}",
+      "public_key": "ed25519.8mWknTQZXhPt3MvJPS6a1wJAaVqzWnT2Xn7UffTujS5K",
+      "signature": "ed25519.54uUB4U36GpprjLiKhtJvw5YSNwnnDGkoYAoxM7VA8rm5EZKcBpREUx4Up8zb5SJDTALrjnouwGt816zDfLye4by",
+      "valid": true
+    },
+    {
+      "id": "unicode_nfd_not_normalized_to_nfc",
+      "description": "Verifiers MUST NOT normalize JSON strings before JCS verification; the NFC signature must fail on the NFD bytes.",
+      "canonical_json": "{\"name\":\"cafe\\u0301\"}",
+      "public_key": "ed25519.8mWknTQZXhPt3MvJPS6a1wJAaVqzWnT2Xn7UffTujS5K",
+      "signature": "ed25519.62g4LaEHQok24a2VvqBPBoYxm9H8WNhXaMgGYdYxZ2pVZu7MD9tfGtqX4PJwNXPUfQeWsBCdQB7D9Xo4Sw9abQZk",
+      "valid": false
     }
   ]
 }

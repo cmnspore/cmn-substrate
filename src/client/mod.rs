@@ -19,13 +19,21 @@ pub use synapse::{
 };
 
 use anyhow::{anyhow, Result};
+use serde::de::{DeserializeOwned, Error as DeError, MapAccess, SeqAccess, Visitor};
+use serde::Deserialize;
+use std::collections::HashSet;
+use std::fmt;
+
+/// Default response body limit for JSON/text client reads (64 MiB).
+pub const DEFAULT_FETCH_MAX_BYTES: usize = 64 * 1024 * 1024;
 
 /// Options for controlling fetch behaviour.
 ///
-/// Use `Default::default()` (or `FetchOptions::new()`) for unlimited reads
-/// with no extra headers, or build with `with_max_bytes` / `with_bearer_token`
-/// / `with_headers`.
-#[derive(Debug, Clone, Default)]
+/// Use `Default::default()` (or `FetchOptions::new()`) for the default 64 MiB
+/// response limit with no extra headers, or build with `with_max_bytes` /
+/// `with_bearer_token` / `headers`. Use `FetchOptions::unlimited()` only
+/// when the caller has an explicit external size bound.
+#[derive(Debug, Clone)]
 pub struct FetchOptions {
     /// Maximum response body bytes. `None` means no limit (uses reqwest `.json()`).
     pub max_bytes: Option<usize>,
@@ -33,9 +41,25 @@ pub struct FetchOptions {
     pub headers: Option<reqwest::header::HeaderMap>,
 }
 
+impl Default for FetchOptions {
+    fn default() -> Self {
+        Self {
+            max_bytes: Some(DEFAULT_FETCH_MAX_BYTES),
+            headers: None,
+        }
+    }
+}
+
 impl FetchOptions {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn unlimited() -> Self {
+        Self {
+            max_bytes: None,
+            ..Default::default()
+        }
     }
 
     pub fn with_max_bytes(max_bytes: usize) -> Self {
@@ -94,16 +118,119 @@ pub async fn json_from_response<T: serde::de::DeserializeOwned>(
     source: &str,
     max_bytes: Option<usize>,
 ) -> Result<T> {
-    match max_bytes {
+    let bytes = match max_bytes {
         None => response
-            .json()
+            .bytes()
             .await
-            .map_err(|e| anyhow!("Failed to parse JSON from {source}: {e}")),
-        Some(limit) => {
-            let bytes = read_body_limited(response, source, limit).await?;
-            serde_json::from_slice(&bytes)
-                .map_err(|e| anyhow!("Failed to parse JSON from {source}: {e}"))
+            .map_err(|e| anyhow!("Failed to read JSON body from {source}: {e}"))?
+            .to_vec(),
+        Some(limit) => read_body_limited(response, source, limit).await?,
+    };
+    json_from_slice_reject_duplicates(&bytes, source)
+}
+
+/// Deserialize JSON while rejecting duplicate object keys.
+///
+/// `serde_json` keeps the last duplicate key by default. For signed protocol
+/// objects that creates parser-differential risk, so client fetch boundaries
+/// fail closed before typed deserialization.
+pub fn json_from_slice_reject_duplicates<T: DeserializeOwned>(
+    bytes: &[u8],
+    source: &str,
+) -> Result<T> {
+    reject_duplicate_json_keys(bytes, source)?;
+    serde_json::from_slice(bytes).map_err(|e| anyhow!("Failed to parse JSON from {source}: {e}"))
+}
+
+fn reject_duplicate_json_keys(bytes: &[u8], source: &str) -> Result<()> {
+    let mut de = serde_json::Deserializer::from_slice(bytes);
+    NoDuplicateKeys::deserialize(&mut de)
+        .map_err(|e| anyhow!("Duplicate-key-safe JSON parse failed from {source}: {e}"))?;
+    de.end()
+        .map_err(|e| anyhow!("Failed to parse JSON from {source}: {e}"))
+}
+
+struct NoDuplicateKeys;
+
+impl<'de> Deserialize<'de> for NoDuplicateKeys {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(NoDuplicateVisitor)
+    }
+}
+
+struct NoDuplicateVisitor;
+
+impl<'de> Visitor<'de> for NoDuplicateVisitor {
+    type Value = NoDuplicateKeys;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("any JSON value without duplicate object keys")
+    }
+
+    fn visit_bool<E>(self, _v: bool) -> std::result::Result<Self::Value, E> {
+        Ok(NoDuplicateKeys)
+    }
+
+    fn visit_i64<E>(self, _v: i64) -> std::result::Result<Self::Value, E> {
+        Ok(NoDuplicateKeys)
+    }
+
+    fn visit_u64<E>(self, _v: u64) -> std::result::Result<Self::Value, E> {
+        Ok(NoDuplicateKeys)
+    }
+
+    fn visit_f64<E>(self, _v: f64) -> std::result::Result<Self::Value, E> {
+        Ok(NoDuplicateKeys)
+    }
+
+    fn visit_str<E>(self, _v: &str) -> std::result::Result<Self::Value, E> {
+        Ok(NoDuplicateKeys)
+    }
+
+    fn visit_string<E>(self, _v: String) -> std::result::Result<Self::Value, E> {
+        Ok(NoDuplicateKeys)
+    }
+
+    fn visit_none<E>(self) -> std::result::Result<Self::Value, E> {
+        Ok(NoDuplicateKeys)
+    }
+
+    fn visit_unit<E>(self) -> std::result::Result<Self::Value, E> {
+        Ok(NoDuplicateKeys)
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        NoDuplicateKeys::deserialize(deserializer)
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        while seq.next_element::<NoDuplicateKeys>()?.is_some() {}
+        Ok(NoDuplicateKeys)
+    }
+
+    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut keys = HashSet::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if !keys.insert(key.clone()) {
+                return Err(A::Error::custom(format!(
+                    "duplicate JSON object key '{key}'"
+                )));
+            }
+            map.next_value::<NoDuplicateKeys>()?;
         }
+        Ok(NoDuplicateKeys)
     }
 }
 
@@ -125,6 +252,81 @@ pub async fn text_from_response(
             String::from_utf8(bytes)
                 .map_err(|e| anyhow!("Response was not UTF-8 from {source}: {e}"))
         }
+    }
+}
+
+/// Stream a response body into a writer with a strict byte limit.
+///
+/// Calls `on_progress(downloaded_bytes, total_bytes)` before reading starts and
+/// after each chunk is written. Returns the total bytes written.
+pub async fn download_response_to_writer<W, F>(
+    response: reqwest::Response,
+    source: &str,
+    max_bytes: u64,
+    mut writer: W,
+    mut on_progress: F,
+) -> Result<u64>
+where
+    W: std::io::Write,
+    F: FnMut(u64, Option<u64>),
+{
+    let total_bytes = response.content_length();
+    if let Some(cl) = total_bytes {
+        if cl > max_bytes {
+            return Err(anyhow!(
+                "Remote payload too large from {source}: {cl} bytes exceeds limit {max_bytes}"
+            ));
+        }
+    }
+
+    on_progress(0, total_bytes);
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut response = response;
+        let mut downloaded: u64 = 0;
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|e| anyhow!("Failed reading response body from {source}: {e}"))?
+        {
+            downloaded = downloaded.saturating_add(chunk.len() as u64);
+            if downloaded > max_bytes {
+                return Err(anyhow!(
+                    "Remote payload exceeded limit from {source}: >{max_bytes} bytes"
+                ));
+            }
+            writer
+                .write_all(&chunk)
+                .map_err(|e| anyhow!("Failed writing response body for {source}: {e}"))?;
+            on_progress(downloaded, total_bytes);
+        }
+        writer
+            .flush()
+            .map_err(|e| anyhow!("Failed flushing response body for {source}: {e}"))?;
+        Ok(downloaded)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("Failed reading response body from {source}: {e}"))?;
+        if bytes.len() as u64 > max_bytes {
+            return Err(anyhow!(
+                "Remote payload exceeded limit from {source}: {} bytes exceeds limit {max_bytes}",
+                bytes.len()
+            ));
+        }
+        writer
+            .write_all(&bytes)
+            .map_err(|e| anyhow!("Failed writing response body for {source}: {e}"))?;
+        writer
+            .flush()
+            .map_err(|e| anyhow!("Failed flushing response body for {source}: {e}"))?;
+        on_progress(bytes.len() as u64, total_bytes);
+        Ok(bytes.len() as u64)
     }
 }
 
@@ -177,6 +379,43 @@ async fn read_body_limited(
             ));
         }
         Ok(bytes.to_vec())
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    #[test]
+    fn json_from_slice_rejects_duplicate_keys() {
+        let err = json_from_slice_reject_duplicates::<Value>(
+            br#"{"capsule":{"key":"a","key":"b"}}"#,
+            "test-json",
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("duplicate JSON object key 'key'"));
+    }
+
+    #[test]
+    fn json_from_slice_rejects_nested_duplicate_keys() {
+        let err = json_from_slice_reject_duplicates::<Value>(
+            br#"[{"a":1},{"nested":{"b":2,"b":3}}]"#,
+            "test-json",
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("duplicate JSON object key 'b'"));
+    }
+
+    #[test]
+    fn json_from_slice_accepts_distinct_keys() {
+        let value = json_from_slice_reject_duplicates::<Value>(
+            br#"{"capsule":{"key":"a","history":[{"key":"old"}]}}"#,
+            "test-json",
+        )
+        .unwrap();
+        assert_eq!(value["capsule"]["key"], "a");
     }
 }
 

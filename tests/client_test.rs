@@ -17,10 +17,11 @@ fn test_client() -> reqwest::Client {
 fn valid_cmn_json() -> serde_json::Value {
     json!({
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
-        "protocol_versions": ["v1"],
         "capsules": [{
             "uri": "cmn://example.com",
+            "serial": 1,
             "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
+            "history": [],
             "endpoints": [
                 {
                     "type": "spore",
@@ -192,10 +193,11 @@ async fn fetch_spore_manifest_http_500() {
 fn spore_url_template_resolution() {
     let cmn_json = json!({
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
-        "protocol_versions": ["v1"],
         "capsules": [{
             "uri": "cmn://example.com",
+            "serial": 1,
             "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
+            "history": [],
             "endpoints": [{
                 "type": "spore",
                 "url": "https://example.com/cmn/spore/{hash}.json"
@@ -606,8 +608,17 @@ async fn fetch_taste_reports_server_error() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn fetch_options_default_has_no_limit() {
+fn fetch_options_default_has_default_limit() {
     let opts = FetchOptions::default();
+    assert_eq!(
+        opts.max_bytes,
+        Some(substrate::client::DEFAULT_FETCH_MAX_BYTES)
+    );
+}
+
+#[test]
+fn fetch_options_unlimited_has_no_limit() {
+    let opts = FetchOptions::unlimited();
     assert_eq!(opts.max_bytes, None);
 }
 
@@ -622,6 +633,16 @@ fn fetch_options_new_equals_default() {
     let a = FetchOptions::new();
     let b = FetchOptions::default();
     assert_eq!(a.max_bytes, b.max_bytes);
+}
+
+#[test]
+fn fetch_options_bearer_token_keeps_default_limit() {
+    let opts = FetchOptions::with_bearer_token("secret-token");
+    assert_eq!(
+        opts.max_bytes,
+        Some(substrate::client::DEFAULT_FETCH_MAX_BYTES)
+    );
+    assert!(opts.headers.is_some());
 }
 
 // ---------------------------------------------------------------------------
@@ -666,10 +687,11 @@ async fn fetch_mycelium_manifest_json_parsing() {
 fn mycelium_url_template_resolution() {
     let cmn_json = json!({
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
-        "protocol_versions": ["v1"],
         "capsules": [{
             "uri": "cmn://example.com",
+            "serial": 1,
             "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
+            "history": [],
             "endpoints": [{
                 "type": "mycelium",
                 "url": "https://example.com/cmn/mycelium/{hash}.json",
@@ -692,10 +714,11 @@ fn mycelium_url_template_resolution() {
 fn taste_url_template_resolution() {
     let cmn_json = json!({
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
-        "protocol_versions": ["v1"],
         "capsules": [{
             "uri": "cmn://example.com",
+            "serial": 1,
             "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
+            "history": [],
             "endpoints": [{
                 "type": "taste",
                 "url": "https://example.com/cmn/taste/{hash}.json"
@@ -866,7 +889,9 @@ async fn fetch_synapse_cmn_success() {
                 "$schema": "https://cmn.dev/schemas/v1/cmn.json",
                 "capsules": [{
                     "uri": "cmn://example.com",
+                    "serial": 1,
                     "key": "ed25519.testkey",
+                    "history": [],
                     "endpoints": []
                 }]
             }

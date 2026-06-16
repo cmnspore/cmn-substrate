@@ -1,43 +1,69 @@
 {
   "version": "cmn-conformance-v1",
-  "description": "Key rotation verification scenarios. Tests the key trust model when domains rotate Ed25519 keys.",
+  "description": "Key rotation verification scenarios with cmn.json history entries and old-key rotation proofs.",
   "cases": [
     {
       "id": "current_key_valid",
       "description": "Content signed with the current active key verifies successfully",
       "cmn_json": {
-        "key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
-        "previous_keys": []
+        "serial": 1,
+        "key": "ed25519.6TcyBfPdBt1kjsvDZLzmBFnuMaLWiTaAt4RjUr9VA5YD",
+        "history": []
       },
-      "content_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "content_key": "ed25519.6TcyBfPdBt1kjsvDZLzmBFnuMaLWiTaAt4RjUr9VA5YD",
       "expected_trusted": true,
       "expected_trust_class": "first_class"
     },
     {
-      "id": "previous_key_valid",
-      "description": "Content signed with a retired key that is still within the trust TTL verifies successfully",
+      "id": "history_key_valid",
+      "description": "Content signed with a retired key verifies when history includes an old-key rotation proof",
       "cmn_json": {
-        "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
-        "previous_keys": [
+        "serial": 2,
+        "key": "ed25519.6TcyBfPdBt1kjsvDZLzmBFnuMaLWiTaAt4RjUr9VA5YD",
+        "history": [
           {
-            "key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
-            "retired_at_epoch_ms": 1710000000000
+            "key": "ed25519.FMUEmtxhU46GzhKF4FW9MLJdQWiLgjiXP9TYRWSrqTpV",
+            "retired_at_epoch_ms": 1710000000000,
+            "status": "retired",
+            "replaced_by": "ed25519.6TcyBfPdBt1kjsvDZLzmBFnuMaLWiTaAt4RjUr9VA5YD",
+            "effective_serial": 2,
+            "rotation_signature": "ed25519.CdDBukQxniopDDRmS4MtDsiHJdzm7xnZYYFBo4yLntWuEE7Xznwi8oHFHfp1He1d5L4xuH9PUjLvApToJZxjNkW"
           }
         ]
       },
-      "content_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "content_key": "ed25519.FMUEmtxhU46GzhKF4FW9MLJdQWiLgjiXP9TYRWSrqTpV",
       "expected_trusted": true,
       "expected_trust_class": "first_class",
-      "note": "Verification checks current key first, then falls back to previous_keys"
+      "note": "Verification checks current key first, then falls back to history entries with valid rotation_signature"
+    },
+    {
+      "id": "revoked_key_rejected",
+      "description": "Content signed with a revoked compromised key is untrusted even though it appears in history",
+      "cmn_json": {
+        "serial": 2,
+        "key": "ed25519.6TcyBfPdBt1kjsvDZLzmBFnuMaLWiTaAt4RjUr9VA5YD",
+        "history": [
+          {
+            "key": "ed25519.FMUEmtxhU46GzhKF4FW9MLJdQWiLgjiXP9TYRWSrqTpV",
+            "status": "revoked",
+            "retired_at_epoch_ms": 1710000000000,
+            "revoked_at_epoch_ms": 1710000000000
+          }
+        ]
+      },
+      "content_key": "ed25519.FMUEmtxhU46GzhKF4FW9MLJdQWiLgjiXP9TYRWSrqTpV",
+      "expected_trusted": false,
+      "note": "revoked keys declare compromise; clients MUST NOT accept signatures by the key after revocation and may conservatively reject all signatures when signing time is unavailable"
     },
     {
       "id": "unknown_key_untrusted",
-      "description": "Content signed with a key not in current or previous_keys is untrusted",
+      "description": "Content signed with a key not in current or history is untrusted",
       "cmn_json": {
-        "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
-        "previous_keys": []
+        "serial": 1,
+        "key": "ed25519.6TcyBfPdBt1kjsvDZLzmBFnuMaLWiTaAt4RjUr9VA5YD",
+        "history": []
       },
-      "content_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "content_key": "ed25519.FMUEmtxhU46GzhKF4FW9MLJdQWiLgjiXP9TYRWSrqTpV",
       "expected_trusted": false,
       "note": "Key is valid Ed25519 but not associated with this domain"
     },
@@ -46,7 +72,7 @@
       "description": "When domain is unreachable, Synapse witness provides second-class trust (not cached)",
       "cmn_json_reachable": false,
       "synapse_confirms_key": true,
-      "content_key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "content_key": "ed25519.FMUEmtxhU46GzhKF4FW9MLJdQWiLgjiXP9TYRWSrqTpV",
       "expected_trusted": true,
       "expected_trust_class": "second_class",
       "note": "Second-class trust is NOT cached to disk — must be re-verified each time"

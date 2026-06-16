@@ -646,6 +646,19 @@ impl Spore {
         self.verify_capsule_signature(host_key)
     }
 
+    /// Verify both signatures using the effective author key for this spore.
+    ///
+    /// Returns the author key that was used: the embedded `core.key` when
+    /// present, otherwise the provided host key.
+    pub fn verify_signatures_with_effective_author<'a>(
+        &'a self,
+        host_key: &'a str,
+    ) -> Result<&'a str> {
+        let author_key = self.effective_author_key(host_key);
+        self.verify_signatures(host_key, author_key)?;
+        Ok(author_key)
+    }
+
     /// Verify both signatures using the same key (self-hosted case where host == author).
     pub fn verify_self_hosted_signatures(&self, key: &str) -> Result<()> {
         self.verify_signatures(key, key)

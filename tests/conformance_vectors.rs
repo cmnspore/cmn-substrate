@@ -14,9 +14,9 @@ use substrate::{
     evaluate_signed_capsule_validity, format_hash, format_key, format_signature, parse_hash,
     parse_key, parse_signature, parse_uri, traverse_bond_graph, validate_schema, verify_signature,
     BondGraphNode, BondRelation, BondTraversalDirection, BondTraversalQuery, CapsuleHostingKind,
-    CmnCapsuleEntry, CmnUriKind, DomainKeyConfirmation, GateAction, GateOperation, KeyTrustClass,
-    KeyTrustDecision, KeyTrustWitnessPolicy, PreviousKey, SchemaType, Spore, SporeBond, SporeTree,
-    TasteVerdict,
+    CmnCapsuleEntry, CmnUriKind, DomainKeyConfirmation, GateAction, GateOperation, KeyHistoryEntry,
+    KeyHistoryStatus, KeyTrustClass, KeyTrustDecision, KeyTrustWitnessPolicy, SchemaType, Spore,
+    SporeBond, SporeTree, TasteVerdict,
 };
 
 #[derive(Debug, Deserialize)]
@@ -76,16 +76,23 @@ struct CapsuleCase {
 }
 
 #[derive(Debug, Deserialize)]
-struct PreviousKeyCase {
+struct KeyHistoryCase {
     key: String,
     retired_at_epoch_ms: u64,
+    #[serde(default)]
+    status: KeyHistoryStatus,
+    replaced_by: Option<String>,
+    effective_serial: Option<u64>,
+    rotation_signature: Option<String>,
+    revoked_at_epoch_ms: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
 struct KeyRotationCmnCase {
+    serial: u64,
     key: String,
     #[serde(default)]
-    previous_keys: Vec<PreviousKeyCase>,
+    history: Vec<KeyHistoryCase>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -145,10 +152,6 @@ struct SubstrateCase {
     confirm_keys: Vec<String>,
     #[serde(default)]
     reject_keys: Vec<String>,
-    #[serde(default)]
-    supports_versions: Vec<String>,
-    #[serde(default)]
-    rejects_versions: Vec<String>,
     resolve_hash: Option<String>,
     resolve_old_hash: Option<String>,
     expected_mycelium_url: Option<String>,
@@ -383,6 +386,10 @@ fn map_uri_error_code(message: &str) -> &'static str {
 fn map_blob_tree_error_code(message: &str) -> &'static str {
     if message.contains("Filename conflict after NFC normalization") {
         "filename_nfc_conflict"
+    } else if message.contains("filename_portable_conflict")
+        || message.contains("CMN portable filename matching")
+    {
+        "filename_portable_conflict"
     } else {
         "tree_error"
     }
@@ -580,13 +587,19 @@ fn walk_dir_for_test(
 fn build_key_rotation_capsule(case: KeyRotationCmnCase) -> CmnCapsuleEntry {
     CmnCapsuleEntry {
         uri: "cmn://example.com".to_string(),
+        serial: case.serial,
         key: case.key,
-        previous_keys: case
-            .previous_keys
+        history: case
+            .history
             .into_iter()
-            .map(|previous| PreviousKey {
-                key: previous.key,
-                retired_at_epoch_ms: previous.retired_at_epoch_ms,
+            .map(|entry| KeyHistoryEntry {
+                key: entry.key,
+                retired_at_epoch_ms: entry.retired_at_epoch_ms,
+                status: entry.status,
+                replaced_by: entry.replaced_by,
+                effective_serial: entry.effective_serial,
+                rotation_signature: entry.rotation_signature,
+                revoked_at_epoch_ms: entry.revoked_at_epoch_ms,
             })
             .collect(),
         endpoints: vec![],
@@ -910,23 +923,6 @@ fn conformance_substrate_vectors() -> Result<()> {
                 key
             );
         }
-        for version in case.supports_versions {
-            assert!(
-                entry.supports_protocol_version(&version),
-                "substrate case {} should support protocol version {}",
-                case.id,
-                version
-            );
-        }
-        for version in case.rejects_versions {
-            assert!(
-                !entry.supports_protocol_version(&version),
-                "substrate case {} should reject protocol version {}",
-                case.id,
-                version
-            );
-        }
-
         if let Some(expected_url) = case.expected_mycelium_url {
             let hash = case
                 .resolve_hash

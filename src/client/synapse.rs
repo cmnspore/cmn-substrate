@@ -1,8 +1,10 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{apply_headers, json_from_response, FetchOptions};
+use super::{apply_headers, json_from_response, text_from_response, FetchOptions};
 use crate::BondRelation;
+
+const SYNAPSE_ERROR_BODY_MAX_BYTES: usize = 64 * 1024;
 
 /// Synapse search response (Agent-First Data envelope).
 #[derive(Debug, Deserialize)]
@@ -382,9 +384,33 @@ pub async fn post_synapse_pulse(
 
     if !response.status().is_success() {
         let status = response.status();
-        let body = response.text().await.unwrap_or_default();
+        let max_body = opts
+            .max_bytes
+            .unwrap_or(SYNAPSE_ERROR_BODY_MAX_BYTES)
+            .min(SYNAPSE_ERROR_BODY_MAX_BYTES);
+        let body = text_from_response(response, &url, Some(max_body))
+            .await
+            .unwrap_or_else(|e| format!("<failed to read bounded error body: {e}>"));
+        let body = strip_control_chars(&body);
         return Err(anyhow!("Synapse returned HTTP {status}: {body}"));
     }
 
     json_from_response(response, &url, opts.max_bytes).await
+}
+
+fn strip_control_chars(value: &str) -> String {
+    value.chars().filter(|c| !c.is_control()).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strip_control_chars_removes_terminal_controls() {
+        assert_eq!(
+            strip_control_chars("bad\u{1b}[31m\nnext\tline"),
+            "bad[31mnextline"
+        );
+    }
 }

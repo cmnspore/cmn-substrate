@@ -1,18 +1,18 @@
 #![cfg(any(feature = "archive-ruzstd", feature = "archive-zstd"))]
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use anyhow::{anyhow, Result as TestResult};
 use substrate::archive::*;
 
-fn make_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
+fn make_tar(entries: &[(&str, &[u8])]) -> std::io::Result<Vec<u8>> {
     let mut builder = tar::Builder::new(Vec::new());
     for (path, data) in entries {
         let mut header = tar::Header::new_gnu();
         header.set_size(data.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, path, &data[..]).unwrap();
+        builder.append_data(&mut header, path, &data[..])?;
     }
-    builder.into_inner().unwrap()
+    builder.into_inner()
 }
 
 /// Build a tar with a raw path that bypasses builder validation.
@@ -50,13 +50,30 @@ fn default_limits() -> ExtractLimits {
     }
 }
 
+fn expect_malicious<T>(
+    result: std::result::Result<T, ExtractError>,
+    expected_message: &str,
+) -> TestResult<()> {
+    match result {
+        Err(ExtractError::Malicious(message)) => {
+            assert!(
+                message.contains(expected_message),
+                "expected error to contain {expected_message:?}, got {message:?}"
+            );
+            Ok(())
+        }
+        Err(error) => Err(anyhow!("expected Malicious, got: {error:?}")),
+        Ok(_) => Err(anyhow!("expected Malicious, got Ok")),
+    }
+}
+
 #[test]
-fn test_extract_tar_basic() {
+fn test_extract_tar_basic() -> TestResult<()> {
     let tar_bytes = make_tar(&[
         ("hello.txt", b"hello world"),
         ("sub/file.rs", b"fn main() {}"),
-    ]);
-    let entries = extract_tar(&tar_bytes, &default_limits()).unwrap();
+    ])?;
+    let entries = extract_tar(&tar_bytes, &default_limits())?;
 
     assert_eq!(entries.len(), 2);
     assert_eq!(entries[0].path, "hello.txt");
@@ -64,185 +81,157 @@ fn test_extract_tar_basic() {
     assert_eq!(entries[0].data, b"hello world");
     assert_eq!(entries[1].path, "sub/file.rs");
     assert_eq!(entries[1].data, b"fn main() {}");
+    Ok(())
 }
 
 #[test]
-fn test_extract_tar_rejects_symlink() {
+fn test_extract_tar_rejects_symlink() -> TestResult<()> {
     let mut builder = tar::Builder::new(Vec::new());
     let mut header = tar::Header::new_gnu();
     header.set_entry_type(tar::EntryType::Symlink);
     header.set_size(0);
     header.set_mode(0o777);
     header.set_cksum();
-    builder
-        .append_link(&mut header, "evil-link", "/etc/passwd")
-        .unwrap();
-    let tar_bytes = builder.into_inner().unwrap();
+    builder.append_link(&mut header, "evil-link", "/etc/passwd")?;
+    let tar_bytes = builder.into_inner()?;
 
-    let err = extract_tar(&tar_bytes, &default_limits()).unwrap_err();
-    match err {
-        ExtractError::Malicious(msg) => assert!(msg.contains("disallowed entry type")),
-        other => panic!("expected Malicious, got: {:?}", other),
-    }
+    expect_malicious(
+        extract_tar(&tar_bytes, &default_limits()),
+        "disallowed entry type",
+    )
 }
 
 #[test]
-fn test_extract_tar_rejects_path_traversal() {
+fn test_extract_tar_rejects_path_traversal() -> TestResult<()> {
     let tar_bytes = make_tar_raw_path("../../etc/passwd", b"root:x:0:0");
-    let err = extract_tar(&tar_bytes, &default_limits()).unwrap_err();
-    match err {
-        ExtractError::Malicious(msg) => assert!(msg.contains("path traversal")),
-        other => panic!("expected Malicious, got: {:?}", other),
-    }
+    expect_malicious(extract_tar(&tar_bytes, &default_limits()), "path traversal")
 }
 
 #[test]
-fn test_extract_tar_rejects_absolute_path() {
+fn test_extract_tar_rejects_absolute_path() -> TestResult<()> {
     let tar_bytes = make_tar_raw_path("/etc/passwd", b"root:x:0:0");
-    let err = extract_tar(&tar_bytes, &default_limits()).unwrap_err();
-    match err {
-        ExtractError::Malicious(msg) => assert!(msg.contains("path traversal")),
-        other => panic!("expected Malicious, got: {:?}", other),
-    }
+    expect_malicious(extract_tar(&tar_bytes, &default_limits()), "path traversal")
 }
 
 #[test]
-fn test_extract_tar_file_count_limit() {
+fn test_extract_tar_file_count_limit() -> TestResult<()> {
     let entries: Vec<(String, Vec<u8>)> =
         (0..5).map(|i| (format!("f{}.txt", i), vec![0u8])).collect();
     let tar_entries: Vec<(&str, &[u8])> = entries
         .iter()
         .map(|(p, d)| (p.as_str(), d.as_slice()))
         .collect();
-    let tar_bytes = make_tar(&tar_entries);
+    let tar_bytes = make_tar(&tar_entries)?;
 
     let limits = ExtractLimits {
         max_bytes: 10 * 1024 * 1024,
         max_files: 3,
         max_file_bytes: 5 * 1024 * 1024,
     };
-    let err = extract_tar(&tar_bytes, &limits).unwrap_err();
-    match err {
-        ExtractError::Malicious(msg) => assert!(msg.contains("max file count")),
-        other => panic!("expected Malicious, got: {:?}", other),
-    }
+    expect_malicious(extract_tar(&tar_bytes, &limits), "max file count")
 }
 
 #[test]
-fn test_extract_tar_total_bytes_limit() {
-    let tar_bytes = make_tar(&[("big.bin", &[0xAA; 1024])]);
+fn test_extract_tar_total_bytes_limit() -> TestResult<()> {
+    let tar_bytes = make_tar(&[("big.bin", &[0xAA; 1024])])?;
     let limits = ExtractLimits {
         max_bytes: 512,
         max_files: 1000,
         max_file_bytes: 5 * 1024 * 1024,
     };
-    let err = extract_tar(&tar_bytes, &limits).unwrap_err();
-    match err {
-        ExtractError::Malicious(msg) => assert!(msg.contains("max extract size")),
-        other => panic!("expected Malicious, got: {:?}", other),
-    }
+    expect_malicious(extract_tar(&tar_bytes, &limits), "max extract size")
 }
 
 #[test]
-fn test_extract_tar_single_file_limit() {
-    let tar_bytes = make_tar(&[("big.bin", &[0xBB; 1024])]);
+fn test_extract_tar_single_file_limit() -> TestResult<()> {
+    let tar_bytes = make_tar(&[("big.bin", &[0xBB; 1024])])?;
     let limits = ExtractLimits {
         max_bytes: 10 * 1024 * 1024,
         max_files: 1000,
         max_file_bytes: 512,
     };
-    let err = extract_tar(&tar_bytes, &limits).unwrap_err();
-    match err {
-        ExtractError::Malicious(msg) => assert!(msg.contains("single file exceeds max size")),
-        other => panic!("expected Malicious, got: {:?}", other),
-    }
+    expect_malicious(
+        extract_tar(&tar_bytes, &limits),
+        "single file exceeds max size",
+    )
 }
 
 #[cfg(feature = "archive-zstd")]
 mod zstd_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
     use std::io::Write;
     use substrate::archive::*;
 
-    use super::{default_limits, make_tar};
+    use super::{default_limits, expect_malicious, make_tar, TestResult};
+
+    fn zstd_compress(data: &[u8], level: i32) -> TestResult<Vec<u8>> {
+        let mut encoder = zstd::Encoder::new(Vec::new(), level)?;
+        encoder.write_all(data)?;
+        Ok(encoder.finish()?)
+    }
 
     #[test]
-    fn test_decode_zstd_roundtrip() {
+    fn test_decode_zstd_roundtrip() -> TestResult<()> {
         let original = b"hello zstd world! This is some test data for compression.";
-        let compressed = {
-            let mut encoder = zstd::Encoder::new(Vec::new(), 3).unwrap();
-            encoder.write_all(original).unwrap();
-            encoder.finish().unwrap()
-        };
+        let compressed = zstd_compress(original, 3)?;
 
-        let decoded = decode_zstd(&compressed, 1024 * 1024).unwrap();
+        let decoded = decode_zstd(&compressed, 1024 * 1024)?;
         assert_eq!(decoded, original);
+        Ok(())
     }
 
     #[test]
-    fn test_decode_zstd_limit() {
+    fn test_decode_zstd_limit() -> TestResult<()> {
         let data = vec![0xCC; 4096];
-        let compressed = {
-            let mut encoder = zstd::Encoder::new(Vec::new(), 1).unwrap();
-            encoder.write_all(&data).unwrap();
-            encoder.finish().unwrap()
-        };
+        let compressed = zstd_compress(&data, 1)?;
 
-        let err = decode_zstd(&compressed, 100).unwrap_err();
-        match err {
-            ExtractError::Malicious(msg) => assert!(msg.contains("exceeds limit")),
-            other => panic!("expected Malicious, got: {:?}", other),
-        }
+        expect_malicious(decode_zstd(&compressed, 100), "exceeds limit")
     }
 
     #[test]
-    fn test_extract_tar_zstd() {
-        let tar_bytes = make_tar(&[("test.txt", b"compressed tar content")]);
-        let compressed = {
-            let mut encoder = zstd::Encoder::new(Vec::new(), 3).unwrap();
-            encoder.write_all(&tar_bytes).unwrap();
-            encoder.finish().unwrap()
-        };
+    fn test_extract_tar_zstd() -> TestResult<()> {
+        let tar_bytes = make_tar(&[("test.txt", b"compressed tar content")])?;
+        let compressed = zstd_compress(&tar_bytes, 3)?;
 
-        let entries = extract_tar_zstd(&compressed, &default_limits()).unwrap();
+        let entries = extract_tar_zstd(&compressed, &default_limits())?;
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].path, "test.txt");
         assert_eq!(entries[0].data, b"compressed tar content");
+        Ok(())
     }
 
     #[test]
-    fn test_encode_decode_zstd_roundtrip() {
+    fn test_encode_decode_zstd_roundtrip() -> TestResult<()> {
         let original = b"encode-decode roundtrip test data for zstd compression";
-        let compressed = encode_zstd(original, 3).unwrap();
-        let decoded = decode_zstd(&compressed, 1024 * 1024).unwrap();
+        let compressed = encode_zstd(original, 3)?;
+        let decoded = decode_zstd(&compressed, 1024 * 1024)?;
         assert_eq!(decoded, original.to_vec());
+        Ok(())
     }
 
     #[test]
-    fn test_encode_decode_zstd_with_dict_roundtrip() {
+    fn test_encode_decode_zstd_with_dict_roundtrip() -> TestResult<()> {
         let dict_data = b"this is the dictionary data that provides context for compression";
         let original = b"this is the dictionary data with some modifications for delta";
-        let compressed = encode_zstd_with_dict(original, dict_data, 3).unwrap();
-        let decoded = decode_zstd_with_dict(&compressed, dict_data, 1024 * 1024).unwrap();
+        let compressed = encode_zstd_with_dict(original, dict_data, 3)?;
+        let decoded = decode_zstd_with_dict(&compressed, dict_data, 1024 * 1024)?;
         assert_eq!(decoded, original.to_vec());
+        Ok(())
     }
 }
 
 #[test]
-fn verify_cmn_spec_archive_hash() {
+fn verify_cmn_spec_archive_hash() -> TestResult<()> {
     let archive_path = "/tmp/test-archive.tar.zst";
     if !std::path::Path::new(archive_path).exists() {
-        eprintln!("Skipping: {archive_path} not found");
-        return;
+        return Ok(());
     }
-    let bytes = std::fs::read(archive_path).unwrap();
+    let bytes = std::fs::read(archive_path)?;
     let limits = substrate::archive::ExtractLimits {
         max_bytes: 1_000_000_000,
         max_files: 100_000,
         max_file_bytes: 500_000_000,
     };
-    let ae = substrate::archive::extract_tar_zstd(&bytes, &limits).unwrap();
+    let ae = substrate::archive::extract_tar_zstd(&bytes, &limits)?;
 
     fn to_tree(entries: &[substrate::archive::ArchiveEntry]) -> Vec<substrate::TreeEntry> {
         use std::collections::BTreeMap;
@@ -265,7 +254,7 @@ fn verify_cmn_spec_archive_hash() {
                 files.push(substrate::TreeEntry::File {
                     name: p.to_string(),
                     content: e.data.clone(),
-                    executable: false,
+                    executable: e.executable,
                 });
             }
         }
@@ -277,6 +266,7 @@ fn verify_cmn_spec_archive_hash() {
                     path: r,
                     kind: e.kind.clone(),
                     data: e.data.clone(),
+                    executable: e.executable,
                 })
                 .collect();
             result.push(substrate::TreeEntry::Directory {
@@ -294,8 +284,8 @@ fn verify_cmn_spec_archive_hash() {
         exclude_names: vec![".git".to_string()],
         follow_rules: vec![".gitignore".to_string()],
     };
-    let hash = substrate::compute_tree_hash_from_entries(&tree, &config).unwrap();
-    eprintln!("Computed: {hash}");
-    eprintln!("Expected: b3.5DzAN1LM3aK9bESYV4nXRkekKgo2Q4Shx2sgsojk1bmn");
-    assert_eq!(hash, "b3.5DzAN1LM3aK9bESYV4nXRkekKgo2Q4Shx2sgsojk1bmn");
+    let hash = substrate::compute_tree_hash_from_entries(&tree, &config)?;
+    let expected = "b3.5DzAN1LM3aK9bESYV4nXRkekKgo2Q4Shx2sgsojk1bmn";
+    assert_eq!(hash, expected);
+    Ok(())
 }

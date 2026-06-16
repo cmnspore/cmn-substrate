@@ -212,7 +212,7 @@ pub fn validate_detailed(doc: &Value) -> Result<(SchemaType, Vec<ValidationError
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use serde_json::{json, Value};
 
     #[test]
     fn test_get_schema_spore() {
@@ -322,15 +322,14 @@ mod tests {
         assert_eq!(result.ok(), Some(SchemaType::Mycelium));
     }
 
-    #[test]
-    fn test_validate_valid_cmn() {
-        let doc = json!({
+    fn valid_cmn_doc() -> Value {
+        json!({
             "$schema": CMN_SCHEMA,
-            "protocol_versions": ["v1"],
             "capsules": [{
                 "uri": "cmn://example.com",
+                "serial": 1,
                 "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
-                "previous_keys": [],
+                "history": [],
                 "endpoints": [
                     {
                         "type": "mycelium",
@@ -349,7 +348,12 @@ mod tests {
                 ]
             }],
             "capsule_signature": "ed25519.3yMR7vZQ9hL"
-        });
+        })
+    }
+
+    #[test]
+    fn test_validate_valid_cmn() {
+        let doc = valid_cmn_doc();
 
         let result = validate(&doc);
         assert!(result.is_ok(), "Validation failed: {:?}", result.err());
@@ -357,15 +361,30 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_valid_cmn_history_entry() {
+        let mut doc = valid_cmn_doc();
+        doc["capsules"][0]["serial"] = json!(2);
+        doc["capsules"][0]["history"] = json!([{
+            "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+            "status": "retired",
+            "retired_at_epoch_ms": 1710000000000_u64,
+            "replaced_by": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
+            "rotation_signature": "ed25519.3yMR7vZQ9hL"
+        }]);
+
+        let result = validate(&doc);
+        assert!(result.is_ok(), "Validation failed: {:?}", result.err());
+    }
+
+    #[test]
     fn test_validate_valid_cmn_taste_only() {
-        // Taste-only domain: uri + key + taste endpoint only
         let doc = json!({
             "$schema": CMN_SCHEMA,
-            "protocol_versions": ["v1"],
             "capsules": [{
                 "uri": "cmn://taster.example.com",
+                "serial": 1,
                 "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
-                "previous_keys": [],
+                "history": [],
                 "endpoints": [{
                     "type": "taste",
                     "url": "https://taster.example.com/cmn/taste/{hash}.json"
@@ -380,14 +399,13 @@ mod tests {
 
     #[test]
     fn test_validate_valid_cmn_no_endpoints() {
-        // Minimal domain: uri + key + empty endpoints
         let doc = json!({
             "$schema": CMN_SCHEMA,
-            "protocol_versions": ["v1"],
             "capsules": [{
                 "uri": "cmn://minimal.example.com",
+                "serial": 1,
                 "key": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4",
-                "previous_keys": [],
+                "history": [],
                 "endpoints": []
             }],
             "capsule_signature": "ed25519.3yMR7vZQ9hL"
@@ -399,19 +417,94 @@ mod tests {
 
     #[test]
     fn test_validate_cmn_missing_key() {
-        let doc = json!({
-            "$schema": CMN_SCHEMA,
-            "protocol_versions": ["v1"],
-            "capsules": [{
-                "uri": "cmn://example.com",
-                "previous_keys": [],
-                "endpoints": []
-            }],
-            "capsule_signature": "ed25519.3yMR7vZQ9hL"
-        });
+        let mut doc = valid_cmn_doc();
+        let Some(capsule) = doc["capsules"][0].as_object_mut() else {
+            assert!(
+                doc["capsules"][0].is_object(),
+                "valid_cmn_doc should contain an object capsule"
+            );
+            return;
+        };
+        capsule.remove("key");
 
         let result = validate(&doc);
         assert!(result.is_err(), "Expected validation to fail without key");
+    }
+
+    #[test]
+    fn test_validate_cmn_missing_serial() {
+        let mut doc = valid_cmn_doc();
+        let Some(capsule) = doc["capsules"][0].as_object_mut() else {
+            assert!(
+                doc["capsules"][0].is_object(),
+                "valid_cmn_doc should contain an object capsule"
+            );
+            return;
+        };
+        capsule.remove("serial");
+
+        let result = validate(&doc);
+        assert!(
+            result.is_err(),
+            "Expected validation to fail without serial"
+        );
+    }
+
+    #[test]
+    fn test_validate_cmn_rejects_removed_protocol_versions() {
+        let mut doc = valid_cmn_doc();
+        let Some(doc_object) = doc.as_object_mut() else {
+            assert!(doc.is_object(), "valid_cmn_doc should be an object");
+            return;
+        };
+        doc_object.insert("protocol_versions".to_string(), json!(["v1"]));
+
+        let result = validate(&doc);
+        assert!(
+            result.is_err(),
+            "Expected validation to reject top-level protocol_versions"
+        );
+    }
+
+    #[test]
+    fn test_validate_cmn_rejects_removed_endpoint_protocol_version() {
+        let mut doc = valid_cmn_doc();
+        doc["capsules"][0]["endpoints"][0]["protocol_version"] = json!("v1");
+
+        let result = validate(&doc);
+        assert!(
+            result.is_err(),
+            "Expected validation to reject endpoint protocol_version"
+        );
+    }
+
+    #[test]
+    fn test_validate_cmn_rejects_previous_keys() {
+        let mut doc = valid_cmn_doc();
+        doc["capsules"][0]["previous_keys"] = json!([]);
+
+        let result = validate(&doc);
+        assert!(
+            result.is_err(),
+            "Expected validation to reject previous_keys"
+        );
+    }
+
+    #[test]
+    fn test_validate_cmn_retired_history_requires_rotation_signature() {
+        let mut doc = valid_cmn_doc();
+        doc["capsules"][0]["history"] = json!([{
+            "key": "ed25519.CJfRUQxyonG6B5mnztsNUqxknbFT89DJdrdrzV9F96mU",
+            "status": "retired",
+            "retired_at_epoch_ms": 1710000000000_u64,
+            "replaced_by": "ed25519.5XmkQ9vZP8nL3xJdFtR7wNcA6sY2bKgU1eH9pXb4"
+        }]);
+
+        let result = validate(&doc);
+        assert!(
+            result.is_err(),
+            "Expected retired history to require rotation_signature"
+        );
     }
 
     #[test]

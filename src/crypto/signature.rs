@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use serde::Serialize;
 
 use super::AlgorithmBytes;
@@ -112,7 +112,7 @@ fn verify_ed25519(data: &[u8], signature_bytes: &[u8], public_key_bytes: &[u8]) 
     let signature = Signature::from_bytes(&signature_bytes);
 
     verifying_key
-        .verify(data, &signature)
+        .verify_strict(data, &signature)
         .map_err(|e| anyhow!("Signature verification failed: {}", e))?;
 
     Ok(())

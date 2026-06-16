@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 
 use anyhow::{anyhow, Result};
+use unicase::UniCase;
 use unicode_normalization::UnicodeNormalization;
 
 use crate::crypto::{format_hash, HashAlgorithm};
@@ -41,6 +42,18 @@ fn hash_data(data: &[u8]) -> [u8; HASH_SIZE] {
 
 fn normalize_filename(name: &str) -> String {
     name.nfc().collect::<String>()
+}
+
+/// Return CMN's deterministic key for portable sibling filename matching.
+///
+/// This intentionally uses canonical decomposition plus Unicode case folding,
+/// not compatibility folding, so compatibility glyphs are not over-rejected.
+pub fn portable_filename_key(name: &str) -> String {
+    let decomposed = name.nfd().collect::<String>();
+    UniCase::unicode(decomposed.as_str())
+        .to_folded_case()
+        .nfd()
+        .collect()
 }
 
 fn hash_blob(content: &[u8]) -> [u8; HASH_SIZE] {
@@ -95,43 +108,54 @@ pub fn compute_hash_and_size_from_entries(
 fn hash_entries(entries: &[TreeEntry], exclude_names: &[String]) -> Result<([u8; HASH_SIZE], u64)> {
     let mut tree_entries = Vec::new();
     let mut seen_names = HashSet::new();
+    let mut seen_portable_names = HashSet::new();
     let mut total_size: u64 = 0;
 
     for entry in entries {
-        let (raw_name, mode, hash) = match entry {
+        let raw_name = match entry {
+            TreeEntry::File { name, .. } | TreeEntry::Directory { name, .. } => name.as_str(),
+        };
+
+        if should_exclude(raw_name, exclude_names) {
+            continue;
+        }
+
+        let normalized_name = normalize_filename(raw_name);
+        if !seen_names.insert(normalized_name.clone()) {
+            return Err(anyhow!(
+                "filename_nfc_conflict: Filename conflict after NFC normalization: {} (multiple sibling entries normalize to same name)",
+                raw_name
+            ));
+        }
+
+        let portable_name = portable_filename_key(raw_name);
+        if !seen_portable_names.insert(portable_name) {
+            return Err(anyhow!(
+                "filename_portable_conflict: Filename conflict under CMN portable filename matching: {} (multiple sibling entries fold to same portable name)",
+                raw_name
+            ));
+        }
+
+        let (mode, hash) = match entry {
             TreeEntry::File {
-                name,
                 content,
                 executable,
+                ..
             } => {
-                if should_exclude(name, exclude_names) {
-                    continue;
-                }
                 total_size += content.len() as u64;
                 let mode = if *executable {
                     MODE_EXECUTABLE
                 } else {
                     MODE_FILE
                 };
-                (name.as_str(), mode.to_string(), hash_blob(content))
+                (mode.to_string(), hash_blob(content))
             }
-            TreeEntry::Directory { name, children } => {
-                if should_exclude(name, exclude_names) {
-                    continue;
-                }
+            TreeEntry::Directory { children, .. } => {
                 let (dir_hash, dir_size) = hash_entries(children, exclude_names)?;
                 total_size += dir_size;
-                (name.as_str(), MODE_DIRECTORY.to_string(), dir_hash)
+                (MODE_DIRECTORY.to_string(), dir_hash)
             }
         };
-
-        let normalized_name = normalize_filename(raw_name);
-        if !seen_names.insert(normalized_name.clone()) {
-            return Err(anyhow!(
-                "Filename conflict after NFC normalization: {} (multiple files normalize to same name)",
-                raw_name
-            ));
-        }
 
         tree_entries.push((mode, normalized_name, hash));
     }
@@ -175,6 +199,42 @@ mod tests {
         let normalized = normalize_filename(nfd);
         let nfc = "caf\u{00e9}";
         assert_eq!(normalized, nfc);
+    }
+
+    #[test]
+    fn test_portable_filename_key() {
+        assert_eq!(
+            portable_filename_key("File.txt"),
+            portable_filename_key("file.txt")
+        );
+        assert_eq!(
+            portable_filename_key("cafe\u{0301}.txt"),
+            portable_filename_key("caf\u{00e9}.txt")
+        );
+        assert_eq!(
+            portable_filename_key("Maße.txt"),
+            portable_filename_key("MASSE.txt")
+        );
+        assert_eq!(
+            portable_filename_key("Σ.txt"),
+            portable_filename_key("ς.txt")
+        );
+        assert_eq!(
+            portable_filename_key("ﬂour.txt"),
+            portable_filename_key("flour.txt")
+        );
+        assert_eq!(
+            portable_filename_key("K.txt"),
+            portable_filename_key("k.txt")
+        );
+        assert_ne!(
+            portable_filename_key("Ａ.txt"),
+            portable_filename_key("A.txt")
+        );
+        assert_ne!(
+            portable_filename_key("①.txt"),
+            portable_filename_key("1.txt")
+        );
     }
 
     #[test]
@@ -298,5 +358,80 @@ mod tests {
         let hash_normal = compute_hash_from_entries(&entries_normal, &[]).unwrap();
         let hash_exec = compute_hash_from_entries(&entries_exec, &[]).unwrap();
         assert_ne!(hash_normal, hash_exec);
+    }
+
+    #[test]
+    fn rejects_sibling_case_collision() {
+        let entries = vec![
+            TreeEntry::File {
+                name: "File.txt".to_string(),
+                content: b"upper".to_vec(),
+                executable: false,
+            },
+            TreeEntry::File {
+                name: "file.txt".to_string(),
+                content: b"lower".to_vec(),
+                executable: false,
+            },
+        ];
+        let err = compute_hash_from_entries(&entries, &[]).unwrap_err();
+        assert!(err.to_string().contains("filename_portable_conflict"));
+    }
+
+    #[test]
+    fn rejects_sibling_canonical_unicode_collision() {
+        let entries = vec![
+            TreeEntry::File {
+                name: "caf\u{00e9}.txt".to_string(),
+                content: b"nfc".to_vec(),
+                executable: false,
+            },
+            TreeEntry::File {
+                name: "cafe\u{0301}.txt".to_string(),
+                content: b"nfd".to_vec(),
+                executable: false,
+            },
+        ];
+        let err = compute_hash_from_entries(&entries, &[]).unwrap_err();
+        assert!(err.to_string().contains("filename_nfc_conflict"));
+    }
+
+    #[test]
+    fn rejects_sibling_full_case_fold_collision() {
+        let entries = vec![
+            TreeEntry::File {
+                name: "Maße.txt".to_string(),
+                content: b"one".to_vec(),
+                executable: false,
+            },
+            TreeEntry::File {
+                name: "MASSE.txt".to_string(),
+                content: b"two".to_vec(),
+                executable: false,
+            },
+        ];
+        let err = compute_hash_from_entries(&entries, &[]).unwrap_err();
+        assert!(err.to_string().contains("filename_portable_conflict"));
+    }
+
+    #[test]
+    fn rejects_file_vs_directory_portable_collision() {
+        let entries = vec![
+            TreeEntry::File {
+                name: "foo".to_string(),
+                content: b"file".to_vec(),
+                executable: false,
+            },
+            TreeEntry::Directory {
+                name: "FOO".to_string(),
+                children: vec![TreeEntry::File {
+                    name: "bar".to_string(),
+                    content: b"child".to_vec(),
+                    executable: false,
+                }],
+            },
+        ];
+        let err = compute_hash_from_entries(&entries, &[]).unwrap_err();
+        assert!(err.to_string().contains("filename_portable_conflict"));
     }
 }

@@ -69,11 +69,11 @@ fn test_decode_spore_spawned_from_hash() {
 fn test_decode_cmn_entry() {
     let payload = serde_json::json!({
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
-        "protocol_versions": ["v1"],
         "capsules": [{
             "uri": "cmn://example.com",
+            "serial": 1,
             "key": "ed25519.5XmkQ9vZP8nL",
-            "previous_keys": [],
+            "history": [],
             "endpoints": [{
                 "type": "mycelium",
                 "url": "https://example.com/cmn/mycelium/{hash}.json",

@@ -56,6 +56,15 @@
       "tree_algorithm": "merkle_blake3",
       "parse_ok": false,
       "error_code": "unsupported_algorithm"
+    },
+    {
+      "id": "deprecated_tree_algorithm_rejected",
+      "kind": "tree",
+      "tree_algorithm": "blob_tree_sha1_legacy",
+      "registry_status": "deprecated",
+      "deprecated_after": "v1.0.0",
+      "parse_ok": false,
+      "error_code": "unsupported_algorithm"
     }
   ]
 }

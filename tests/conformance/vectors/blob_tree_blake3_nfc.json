@@ -1,6 +1,6 @@
 {
   "version": "cmn-conformance-v1",
-  "description": "blob_tree_blake3_nfc tree hashing vectors. Tests NFC normalization, exclusions, and follow-rules behavior.",
+  "description": "blob_tree_blake3_nfc tree hashing vectors. Tests NFC normalization, portable filename conflicts, exclusions, and follow-rules behavior.",
   "cases": [
     {
       "id": "basic_tree",
@@ -48,6 +48,39 @@
       "follow_rules": [],
       "expect_ok": false,
       "error_code": "filename_nfc_conflict"
+    },
+    {
+      "id": "portable_case_filename_conflict",
+      "entries": [
+        { "path": "File.txt", "content": "upper\n" },
+        { "path": "file.txt", "content": "lower\n" }
+      ],
+      "exclude_names": [],
+      "follow_rules": [],
+      "expect_ok": false,
+      "error_code": "filename_portable_conflict"
+    },
+    {
+      "id": "portable_full_case_fold_conflict",
+      "entries": [
+        { "path": "Ma\u00dfe.txt", "content": "eszett\n" },
+        { "path": "MASSE.txt", "content": "ascii\n" }
+      ],
+      "exclude_names": [],
+      "follow_rules": [],
+      "expect_ok": false,
+      "error_code": "filename_portable_conflict"
+    },
+    {
+      "id": "portable_file_vs_directory_conflict",
+      "entries": [
+        { "path": "foo", "content": "file\n" },
+        { "path": "FOO/bar.txt", "content": "child\n" }
+      ],
+      "exclude_names": [],
+      "follow_rules": [],
+      "expect_ok": false,
+      "error_code": "filename_portable_conflict"
     }
   ]
 }

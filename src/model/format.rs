@@ -154,15 +154,18 @@ const TASTE_CORE_KEY_ORDER: &[&str] = &[
 
 // -- CMN key orders --
 
-const CMN_TOP_KEY_ORDER: &[&str] = &[
-    "$schema",
-    "protocol_versions",
-    "capsules",
-    "capsule_signature",
-];
-const CMN_CAPSULE_ENTRY_KEY_ORDER: &[&str] = &["uri", "key", "previous_keys", "endpoints"];
+const CMN_TOP_KEY_ORDER: &[&str] = &["$schema", "capsules", "capsule_signature"];
+const CMN_CAPSULE_ENTRY_KEY_ORDER: &[&str] = &["uri", "serial", "key", "history", "endpoints"];
 const CMN_ENDPOINT_KEY_ORDER: &[&str] = &["type", "url", "hashes", "format", "delta_url"];
-const PREVIOUS_KEY_ORDER: &[&str] = &["key", "retired_at_epoch_ms"];
+const KEY_HISTORY_ORDER: &[&str] = &[
+    "key",
+    "status",
+    "retired_at_epoch_ms",
+    "replaced_by",
+    "effective_serial",
+    "rotation_signature",
+    "revoked_at_epoch_ms",
+];
 
 // -- PrettyJson implementations --
 
@@ -297,11 +300,11 @@ impl super::CmnEntry {
                         }
                     }
 
-                    // Previous keys inside each capsule
-                    if let Some(Value::Array(prev_keys)) = map.get_mut("previous_keys") {
-                        for pk in prev_keys.iter_mut() {
-                            if let Value::Object(pk_map) = pk {
-                                *pk_map = order_keys(pk_map, PREVIOUS_KEY_ORDER);
+                    // Key history inside each capsule
+                    if let Some(Value::Array(history)) = map.get_mut("history") {
+                        for item in history.iter_mut() {
+                            if let Value::Object(history_map) = item {
+                                *history_map = order_keys(history_map, KEY_HISTORY_ORDER);
                             }
                         }
                     }
@@ -426,8 +429,9 @@ mod tests {
     fn test_cmn_entry_to_pretty_json_deep() {
         let entry = CmnEntry::new(vec![CmnCapsuleEntry {
             uri: "cmn://example.com".to_string(),
+            serial: 1,
             key: "ed25519.abc".to_string(),
-            previous_keys: vec![],
+            history: vec![],
             endpoints: vec![CmnEndpoint {
                 kind: "mycelium".to_string(),
                 url: "https://example.com/cmn/mycelium/{hash}.json".to_string(),
@@ -435,7 +439,6 @@ mod tests {
                 hashes: vec![],
                 format: None,
                 delta_url: None,
-                protocol_version: None,
             }],
         }]);
         let json = entry.to_pretty_json_deep().unwrap();

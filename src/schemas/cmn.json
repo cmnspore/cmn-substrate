@@ -3,7 +3,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CMN Domain Entry Point",
   "type": "object",
-  "required": ["$schema", "protocol_versions", "capsules", "capsule_signature"],
+  "required": ["$schema", "capsules", "capsule_signature"],
   "properties": {
     "$schema": {
       "const": "https://cmn.dev/schemas/v1/cmn.json"
@@ -14,70 +14,105 @@
       "items": { "$ref": "#/$defs/capsule_entry" },
       "description": "First entry is this host domain's own capsule; additional entries MAY describe mirrored origin domains."
     },
-    "protocol_versions": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "pattern": "^v[0-9]+$"
-      },
-      "minItems": 1,
-      "uniqueItems": true,
-      "description": "Protocol versions supported by this domain (e.g. [\"v1\"])."
-    },
     "capsule_signature": {
       "$ref": "#/$defs/signature",
-      "description": "Signature over the capsules array, verified with capsules[0].key"
+      "description": "Signature over the JCS-canonical capsules array, verified with capsules[0].key"
     }
   },
-  "additionalProperties": true,
+  "additionalProperties": false,
   "$defs": {
     "capsule_entry": {
       "type": "object",
-      "required": ["uri", "key"],
+      "required": ["uri", "serial", "key", "history", "endpoints"],
       "properties": {
         "uri": {
           "type": "string",
           "pattern": "^cmn://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
           "description": "Domain URI of the capsule origin: cmn://{origin_domain}"
         },
+        "serial": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Monotonically increasing domain-state serial for anti-rollback pinning."
+        },
         "key": {
           "type": "string",
           "pattern": "^ed25519\\.[1-9A-HJ-NP-Za-km-z]+$",
-          "description": "Ed25519 public key of the entry's origin domain in {algorithm}.{base58} format"
+          "description": "Current Ed25519 public key of the entry's origin domain in {algorithm}.{base58} format"
         },
-        "previous_keys": {
+        "history": {
           "type": "array",
-          "description": "Retired keys for verifying historical content signed before key rotation. Empty array if no key rotation has occurred.",
-          "items": { "$ref": "#/$defs/previous_key" }
+          "description": "Historical keys for rotation/revocation. Retired entries require an old-key signature authorizing replaced_by.",
+          "items": { "$ref": "#/$defs/key_history_entry" }
         },
         "endpoints": {
           "$ref": "#/$defs/endpoints",
           "description": "Typed array of endpoint definitions. Taste-only domains provide only a taste endpoint."
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "domain": {
       "type": "string",
       "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
       "description": "Lowercase RFC1123 fully-qualified domain name"
     },
-    "previous_key": {
+    "key_history_entry": {
       "type": "object",
-      "required": ["key", "retired_at_epoch_ms"],
+      "required": ["key", "status", "retired_at_epoch_ms"],
       "properties": {
         "key": {
           "type": "string",
           "pattern": "^ed25519\\.[1-9A-HJ-NP-Za-km-z]+$",
-          "description": "Retired Ed25519 public key in {algorithm}.{base58} format"
+          "description": "Historical Ed25519 public key in {algorithm}.{base58} format"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["retired", "revoked"],
+          "description": "retired = normal rotation with proof; revoked = compromised key"
         },
         "retired_at_epoch_ms": {
           "type": "integer",
           "minimum": 0,
-          "description": "When this key was retired (milliseconds since Unix epoch)"
+          "description": "When this key left active use (milliseconds since Unix epoch)"
+        },
+        "replaced_by": {
+          "type": "string",
+          "pattern": "^ed25519\\.[1-9A-HJ-NP-Za-km-z]+$",
+          "description": "Successor key authorized by this historical key"
+        },
+        "effective_serial": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Domain-state serial at which this key rotation became effective. If omitted, verifiers use the containing capsule serial."
+        },
+        "rotation_signature": {
+          "$ref": "#/$defs/signature",
+          "description": "Signature by key over the cmn-key-rotation-v1 statement"
+        },
+        "revoked_at_epoch_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Required when status=revoked; signatures produced at or after this time must be rejected"
         }
       },
-      "additionalProperties": true
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "retired" } },
+            "required": ["status"]
+          },
+          "then": { "required": ["replaced_by", "rotation_signature"] }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "revoked" } },
+            "required": ["status"]
+          },
+          "then": { "required": ["revoked_at_epoch_ms"] }
+        }
+      ],
+      "additionalProperties": false
     },
     "content_hash": {
       "type": "string",
@@ -101,11 +136,6 @@
       "pattern": "^[a-z0-9][a-z0-9._-]*$",
       "description": "Endpoint type identifier (e.g., mycelium, spore, archive, taste)"
     },
-    "protocol_version": {
-      "type": "string",
-      "pattern": "^v[0-9]+$",
-      "description": "Protocol version this endpoint serves (e.g. \"v1\"). Defaults to \"v1\" when absent."
-    },
     "endpoint_mycelium": {
       "type": "object",
       "required": ["type", "url", "hash"],
@@ -124,10 +154,9 @@
           "type": "array",
           "items": { "$ref": "#/$defs/content_hash" },
           "description": "Optional additional mycelium shard hashes for large domains. Each points to an overflow shard whose spore list is merged for search and indexing. Metadata from these shards is ignored — only the primary hash is authoritative."
-        },
-        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+        }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "endpoint_spore": {
       "type": "object",
@@ -138,10 +167,9 @@
           "type": "string",
           "pattern": "\\{hash\\}",
           "description": "Template URL for fetching spores, e.g. https://example.com/cmn/spore/{hash}.json"
-        },
-        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+        }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "endpoint_archive": {
       "type": "object",
@@ -161,10 +189,9 @@
           "type": "string",
           "pattern": "(?=.*\\{hash\\})(?=.*\\{old_hash\\})",
           "description": "Optional template URL for archive deltas. MUST include {hash} (target) and {old_hash} (cached base). Direction is old_hash -> hash."
-        },
-        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+        }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "endpoint_taste": {
       "type": "object",
@@ -175,10 +202,9 @@
           "type": "string",
           "pattern": "\\{hash\\}",
           "description": "Template URL for fetching taste reports, e.g. https://example.com/cmn/taste/{hash}.json"
-        },
-        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+        }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "endpoint_extension": {
       "type": "object",
@@ -195,18 +221,22 @@
           "type": "string",
           "minLength": 1,
           "description": "Template URL for this endpoint type"
-        },
-        "protocol_version": { "$ref": "#/$defs/protocol_version" }
+        }
       },
       "additionalProperties": true
     },
     "endpoint_entry": {
-      "oneOf": [
-        { "$ref": "#/$defs/endpoint_mycelium" },
-        { "$ref": "#/$defs/endpoint_spore" },
-        { "$ref": "#/$defs/endpoint_archive" },
-        { "$ref": "#/$defs/endpoint_taste" },
-        { "$ref": "#/$defs/endpoint_extension" }
+      "allOf": [
+        { "not": { "required": ["protocol_version"] } },
+        {
+          "oneOf": [
+            { "$ref": "#/$defs/endpoint_mycelium" },
+            { "$ref": "#/$defs/endpoint_spore" },
+            { "$ref": "#/$defs/endpoint_archive" },
+            { "$ref": "#/$defs/endpoint_taste" },
+            { "$ref": "#/$defs/endpoint_extension" }
+          ]
+        }
       ]
     },
     "endpoints": {

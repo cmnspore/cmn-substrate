@@ -92,6 +92,29 @@
       "verdict": "toxic",
       "expected_action": "proceed",
       "description": "sense (metadata fetch, no download) always proceeds — reading metadata is never dangerous"
+    },
+    {
+      "id": "latest_taster_verdict_wins",
+      "operation": "spawn",
+      "verdict": "toxic",
+      "reports": [
+        {
+          "taster_domain": "alice.dev",
+          "taster_key": "ed25519.a",
+          "target_uri": "cmn://target.dev/b3.x",
+          "verdict": "safe",
+          "tasted_at_epoch_ms": 10
+        },
+        {
+          "taster_domain": "alice.dev",
+          "taster_key": "ed25519.a",
+          "target_uri": "cmn://target.dev/b3.x",
+          "verdict": "toxic",
+          "tasted_at_epoch_ms": 20
+        }
+      ],
+      "expected_action": "block",
+      "description": "When the same taster publishes multiple reports for the same target, clients MUST use the greatest tasted_at_epoch_ms; here the latest report is toxic."
     }
   ]
 }

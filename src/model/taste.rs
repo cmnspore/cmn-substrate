@@ -204,6 +204,27 @@ impl VerdictSummary {
     }
 }
 
+/// Return the latest report for each `(taster domain, taster key, target_uri)`.
+pub fn latest_taste_reports_by_taster(tastes: &[Taste]) -> Vec<&Taste> {
+    let mut latest: HashMap<(&str, &str, &str), &Taste> = HashMap::new();
+    for taste in tastes {
+        let key = (
+            taste.capsule.core.domain.as_str(),
+            taste.capsule.core.key.as_str(),
+            taste.capsule.core.target_uri.as_str(),
+        );
+        match latest.get(&key) {
+            Some(existing)
+                if existing.capsule.core.tasted_at_epoch_ms
+                    >= taste.capsule.core.tasted_at_epoch_ms => {}
+            _ => {
+                latest.insert(key, taste);
+            }
+        }
+    }
+    latest.into_values().collect()
+}
+
 impl Taste {
     pub fn uri(&self) -> &str {
         &self.capsule.uri
@@ -323,6 +344,61 @@ mod tests {
     #![allow(clippy::expect_used, clippy::unwrap_used)]
 
     use super::*;
+
+    fn taste(domain: &str, key: &str, target: &str, verdict: TasteVerdict, ts: u64) -> Taste {
+        Taste {
+            schema: TASTE_SCHEMA.to_string(),
+            capsule: TasteCapsule {
+                uri: format!("cmn://{domain}/taste/b3.fake{ts}"),
+                core: TasteCore {
+                    domain: domain.to_string(),
+                    key: key.to_string(),
+                    target_uri: target.to_string(),
+                    verdict,
+                    notes: vec![],
+                    tasted_at_epoch_ms: ts,
+                },
+                core_signature: "ed25519.fake".to_string(),
+            },
+            capsule_signature: "ed25519.fake".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_latest_taste_reports_by_taster_uses_newest_per_target() {
+        let reports = vec![
+            taste(
+                "alice.dev",
+                "ed25519.a",
+                "cmn://target.dev/b3.x",
+                TasteVerdict::Safe,
+                10,
+            ),
+            taste(
+                "alice.dev",
+                "ed25519.a",
+                "cmn://target.dev/b3.x",
+                TasteVerdict::Toxic,
+                20,
+            ),
+            taste(
+                "bob.dev",
+                "ed25519.b",
+                "cmn://target.dev/b3.x",
+                TasteVerdict::Fresh,
+                5,
+            ),
+        ];
+
+        let latest = latest_taste_reports_by_taster(&reports);
+        assert_eq!(latest.len(), 2);
+        assert!(latest.iter().any(|t| {
+            t.author_domain() == "alice.dev" && t.capsule.core.verdict == TasteVerdict::Toxic
+        }));
+        assert!(latest.iter().any(|t| {
+            t.author_domain() == "bob.dev" && t.capsule.core.verdict == TasteVerdict::Fresh
+        }));
+    }
 
     #[test]
     fn test_base_gate_action() {

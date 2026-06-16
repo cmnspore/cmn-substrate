@@ -8,7 +8,7 @@
 This directory provides implementation-neutral conformance vectors for every
 normative core spec chapter plus supporting protocol behaviors:
 
-- `substrate`: `01-substrate` domain entry, endpoint resolution, protocol versions
+- `substrate`: `01-substrate` domain entry, endpoint resolution, serial/history semantics
 - `mycelium`: `02-mycelium` manifest inventory, nutrients, taste catalog
 - `spore`: `03-spore` manifest semantics, distributions, lineage helpers
 - `taste`: `04-taste` base verdict-to-action safety rules

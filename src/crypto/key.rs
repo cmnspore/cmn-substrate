@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use ed25519_dalek::VerifyingKey;
 
 use super::AlgorithmBytes;
 
@@ -31,6 +32,7 @@ pub fn parse_key(value: &str) -> Result<AlgorithmBytes<KeyAlgorithm>> {
             bytes.len()
         ));
     }
+    validate_key_bytes(algorithm, &bytes)?;
 
     Ok(AlgorithmBytes { algorithm, bytes })
 }
@@ -51,6 +53,24 @@ impl KeyAlgorithm {
     }
 }
 
+fn validate_key_bytes(algorithm: KeyAlgorithm, bytes: &[u8]) -> Result<()> {
+    match algorithm {
+        KeyAlgorithm::Ed25519 => {
+            let bytes: [u8; 32] = bytes
+                .try_into()
+                .map_err(|_| anyhow!("Invalid ed25519 public key length"))?;
+            let key = VerifyingKey::from_bytes(&bytes)
+                .map_err(|e| anyhow!("Invalid ed25519 public key: {}", e))?;
+            if key.is_weak() {
+                return Err(anyhow!(
+                    "Invalid ed25519 public key: weak/small-order point"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -68,5 +88,11 @@ mod tests {
     #[test]
     fn test_parse_key_rejects_wrong_length() {
         assert!(parse_key("ed25519.5Hue").is_err());
+    }
+
+    #[test]
+    fn test_parse_key_rejects_weak_public_key() {
+        let weak_key = format_key(KeyAlgorithm::Ed25519, &[0u8; 32]);
+        assert!(parse_key(&weak_key).is_err());
     }
 }

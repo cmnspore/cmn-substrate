@@ -57,12 +57,12 @@
       },
       "cmn": {
         "$schema": "https://cmn.dev/schemas/v1/cmn.json",
-        "protocol_versions": ["v1"],
         "capsules": [
           {
             "uri": "cmn://example.com",
+            "serial": 1,
             "key": "ed25519.9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
-            "previous_keys": [],
+            "history": [],
             "endpoints": [
               {
                 "type": "archive",

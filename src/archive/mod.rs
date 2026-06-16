@@ -8,10 +8,11 @@ mod zstd_codec;
 
 pub use zstd_codec::*;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read};
+use std::path::{Component, Path};
 
-use crate::tree::TreeEntry;
+use crate::tree::{portable_filename_key, TreeEntry};
 
 /// Limits for archive extraction to prevent resource exhaustion.
 pub struct ExtractLimits {
@@ -33,6 +34,12 @@ pub struct ArchiveEntry {
     pub path: String,
     pub kind: EntryKind,
     pub data: Vec<u8>,
+    /// Executable bit from the tar header (`mode & 0o111`). Always `false` for directories.
+    ///
+    /// Must survive the round trip: tree hashes encode git-style modes
+    /// (`100755`/`100644`), so dropping this bit makes archive verification
+    /// diverge from the publisher's filesystem-derived hash.
+    pub executable: bool,
 }
 
 /// Error type for archive extraction operations.
@@ -82,6 +89,8 @@ pub fn extract_tar(
         .map_err(|e| ExtractError::Failed(format!("Failed to read tar entries: {}", e)))?;
 
     let mut result = Vec::new();
+    let mut seen_paths = BTreeSet::new();
+    let mut seen_components = PortableComponentTracker::default();
     let mut total_bytes: u64 = 0;
     let mut total_files: u64 = 0;
 
@@ -110,27 +119,30 @@ pub fn extract_tar(
             .map_err(|e| ExtractError::Failed(format!("Bad entry path: {}", e)))?
             .into_owned();
 
-        // Reject absolute paths and path traversal
-        if path.is_absolute()
-            || path
-                .components()
-                .any(|c| c == std::path::Component::ParentDir)
-        {
+        let Some(path_str) = normalize_archive_path(&path)? else {
+            continue;
+        };
+        if !seen_paths.insert(path_str.clone()) {
             return Err(ExtractError::Malicious(format!(
-                "path traversal in tar: {}",
-                path.display()
+                "duplicate path in tar after normalization: {}",
+                path_str
             )));
         }
-
-        let path_str = path.to_string_lossy().into_owned();
+        seen_components.validate_path(&path_str)?;
 
         if entry_type.is_dir() {
             result.push(ArchiveEntry {
                 path: path_str,
                 kind: EntryKind::Directory,
                 data: Vec::new(),
+                executable: false,
             });
         } else {
+            let executable = entry
+                .header()
+                .mode()
+                .map(|m| m & 0o111 != 0)
+                .unwrap_or(false);
             total_files += 1;
             if total_files > limits.max_files {
                 return Err(ExtractError::Malicious(format!(
@@ -170,11 +182,71 @@ pub fn extract_tar(
                 path: path_str,
                 kind: EntryKind::File,
                 data,
+                executable,
             });
         }
     }
 
     Ok(result)
+}
+
+fn normalize_archive_path(path: &Path) -> Result<Option<String>, ExtractError> {
+    let mut parts = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(value) => parts.push(value.to_string_lossy().into_owned()),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(ExtractError::Malicious(format!(
+                    "path traversal in tar: {}",
+                    path.display()
+                )));
+            }
+        }
+    }
+
+    if parts.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(parts.join("/")))
+    }
+}
+
+#[derive(Default)]
+struct PortableComponentTracker {
+    by_parent: BTreeMap<String, BTreeMap<String, String>>,
+}
+
+impl PortableComponentTracker {
+    fn validate_path(&mut self, path: &str) -> Result<(), ExtractError> {
+        let mut parent = String::new();
+
+        for component in path.split('/') {
+            let portable_key = portable_filename_key(component);
+            let siblings = self.by_parent.entry(parent.clone()).or_default();
+            match siblings.get(&portable_key) {
+                Some(existing) if existing != component => {
+                    return Err(ExtractError::Malicious(format!(
+                        "filename_portable_conflict: archive path component '{}' conflicts with sibling '{}' under CMN portable filename matching",
+                        component, existing
+                    )));
+                }
+                Some(_) => {}
+                None => {
+                    siblings.insert(portable_key, component.to_string());
+                }
+            }
+
+            if parent.is_empty() {
+                parent.push_str(component);
+            } else {
+                parent.push('/');
+                parent.push_str(component);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// Decompress zstd then unpack tar — all in memory.
@@ -193,7 +265,8 @@ pub fn extract_tar_zstd(
 /// Convert flat `ArchiveEntry` list into a nested `TreeEntry` tree.
 ///
 /// Only file entries are included (directories are inferred from paths).
-/// Leading `./` and `/` are stripped. All files are marked non-executable.
+/// Leading `./` and `/` are stripped. The executable bit is carried over
+/// so tree hashes match the publisher's filesystem-derived hash.
 pub fn archive_entries_to_tree(entries: &[ArchiveEntry]) -> Vec<TreeEntry> {
     entries_to_tree_inner(
         entries
@@ -206,28 +279,34 @@ pub fn archive_entries_to_tree(entries: &[ArchiveEntry]) -> Vec<TreeEntry> {
                 if path.is_empty() {
                     return None;
                 }
-                Some((path, e.data.as_slice()))
+                Some((path, e.data.as_slice(), e.executable))
             })
             .collect(),
     )
 }
 
-fn entries_to_tree_inner(files: Vec<(&str, &[u8])>) -> Vec<TreeEntry> {
-    let mut root_files: Vec<TreeEntry> = Vec::new();
-    let mut subdirs: BTreeMap<&str, Vec<(&str, &[u8])>> = BTreeMap::new();
+/// `(path, content, executable)` borrowed from an `ArchiveEntry`.
+type FileRef<'a> = (&'a str, &'a [u8], bool);
 
-    for (path, data) in files {
+fn entries_to_tree_inner(files: Vec<FileRef<'_>>) -> Vec<TreeEntry> {
+    let mut root_files: Vec<TreeEntry> = Vec::new();
+    let mut subdirs: BTreeMap<&str, Vec<FileRef<'_>>> = BTreeMap::new();
+
+    for (path, data, executable) in files {
         if let Some(idx) = path.find('/') {
             let dir_name = &path[..idx];
             let rest = &path[idx + 1..];
             if !rest.is_empty() {
-                subdirs.entry(dir_name).or_default().push((rest, data));
+                subdirs
+                    .entry(dir_name)
+                    .or_default()
+                    .push((rest, data, executable));
             }
         } else {
             root_files.push(TreeEntry::File {
                 name: path.to_string(),
                 content: data.to_vec(),
-                executable: false,
+                executable,
             });
         }
     }
@@ -263,28 +342,34 @@ pub fn archive_entries_into_tree(entries: Vec<ArchiveEntry>) -> Vec<TreeEntry> {
                 if path.is_empty() {
                     return None;
                 }
-                Some((path, e.data))
+                Some((path, e.data, e.executable))
             })
             .collect(),
     )
 }
 
-fn entries_into_tree_inner(files: Vec<(String, Vec<u8>)>) -> Vec<TreeEntry> {
-    let mut root_files: Vec<TreeEntry> = Vec::new();
-    let mut subdirs: BTreeMap<String, Vec<(String, Vec<u8>)>> = BTreeMap::new();
+/// `(path, content, executable)` moved out of an `ArchiveEntry`.
+type FileOwned = (String, Vec<u8>, bool);
 
-    for (path, data) in files {
+fn entries_into_tree_inner(files: Vec<FileOwned>) -> Vec<TreeEntry> {
+    let mut root_files: Vec<TreeEntry> = Vec::new();
+    let mut subdirs: BTreeMap<String, Vec<FileOwned>> = BTreeMap::new();
+
+    for (path, data, executable) in files {
         if let Some(idx) = path.find('/') {
             let dir_name = path[..idx].to_string();
             let rest = path[idx + 1..].to_string();
             if !rest.is_empty() {
-                subdirs.entry(dir_name).or_default().push((rest, data));
+                subdirs
+                    .entry(dir_name)
+                    .or_default()
+                    .push((rest, data, executable));
             }
         } else {
             root_files.push(TreeEntry::File {
                 name: path,
                 content: data,
-                executable: false,
+                executable,
             });
         }
     }
@@ -355,129 +440,285 @@ pub fn extract_and_verify_tar_zstd(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{anyhow, Result as TestResult};
 
-    #[test]
-    fn entries_to_tree_single_file() {
-        let entries = vec![ArchiveEntry {
-            path: "README.md".to_string(),
-            kind: EntryKind::File,
-            data: b"# hello".to_vec(),
-        }];
-        let tree = archive_entries_to_tree(&entries);
-        assert_eq!(tree.len(), 1);
-        match &tree[0] {
-            TreeEntry::File { name, content, .. } => {
-                assert_eq!(name, "README.md");
-                assert_eq!(content, b"# hello");
+    fn tree_file(entry: &TreeEntry) -> TestResult<(&str, &[u8], bool)> {
+        match entry {
+            TreeEntry::File {
+                name,
+                content,
+                executable,
+            } => Ok((name.as_str(), content.as_slice(), *executable)),
+            TreeEntry::Directory { name, .. } => {
+                Err(anyhow!("expected file, got directory {name}"))
             }
-            _ => panic!("expected file"),
+        }
+    }
+
+    fn tree_dir(entry: &TreeEntry) -> TestResult<(&str, &[TreeEntry])> {
+        match entry {
+            TreeEntry::Directory { name, children } => Ok((name.as_str(), children.as_slice())),
+            TreeEntry::File { name, .. } => Err(anyhow!("expected directory, got file {name}")),
+        }
+    }
+
+    fn expect_malicious<T>(
+        result: std::result::Result<T, ExtractError>,
+        expected_message: &str,
+    ) -> TestResult<()> {
+        match result {
+            Err(ExtractError::Malicious(message)) => {
+                assert!(
+                    message.contains(expected_message),
+                    "expected error to contain {expected_message:?}, got {message:?}"
+                );
+                Ok(())
+            }
+            Err(error) => Err(anyhow!("expected malicious error, got {error:?}")),
+            Ok(_) => Err(anyhow!("expected malicious error, got Ok")),
         }
     }
 
     #[test]
-    fn entries_to_tree_nested() {
+    fn entries_to_tree_single_file() -> TestResult<()> {
+        let entries = vec![ArchiveEntry {
+            path: "README.md".to_string(),
+            kind: EntryKind::File,
+            data: b"# hello".to_vec(),
+            executable: false,
+        }];
+        let tree = archive_entries_to_tree(&entries);
+        assert_eq!(tree.len(), 1);
+        let (name, content, _) = tree_file(&tree[0])?;
+        assert_eq!(name, "README.md");
+        assert_eq!(content, b"# hello");
+        Ok(())
+    }
+
+    #[test]
+    fn entries_to_tree_nested() -> TestResult<()> {
         let entries = vec![
             ArchiveEntry {
                 path: "src/main.rs".into(),
                 kind: EntryKind::File,
                 data: b"fn main(){}".to_vec(),
+                executable: false,
             },
             ArchiveEntry {
                 path: "src/lib.rs".into(),
                 kind: EntryKind::File,
                 data: b"//lib".to_vec(),
+                executable: false,
             },
             ArchiveEntry {
                 path: "README.md".into(),
                 kind: EntryKind::File,
                 data: b"hi".to_vec(),
+                executable: false,
             },
         ];
         let tree = archive_entries_to_tree(&entries);
         assert_eq!(tree.len(), 2); // src/ dir + README.md
-        match &tree[0] {
-            TreeEntry::Directory { name, children } => {
-                assert_eq!(name, "src");
-                assert_eq!(children.len(), 2);
-            }
-            _ => panic!("expected directory"),
-        }
+        let (name, children) = tree_dir(&tree[0])?;
+        assert_eq!(name, "src");
+        assert_eq!(children.len(), 2);
+        Ok(())
     }
 
     #[test]
-    fn entries_to_tree_skips_directories() {
+    fn entries_to_tree_skips_directories() -> TestResult<()> {
         let entries = vec![
             ArchiveEntry {
                 path: "src/".into(),
                 kind: EntryKind::Directory,
                 data: vec![],
+                executable: false,
             },
             ArchiveEntry {
                 path: "src/main.rs".into(),
                 kind: EntryKind::File,
                 data: b"fn main(){}".to_vec(),
+                executable: false,
             },
         ];
         let tree = archive_entries_to_tree(&entries);
         assert_eq!(tree.len(), 1);
-        match &tree[0] {
-            TreeEntry::Directory { name, children } => {
-                assert_eq!(name, "src");
-                assert_eq!(children.len(), 1);
-            }
-            _ => panic!("expected directory"),
-        }
+        let (name, children) = tree_dir(&tree[0])?;
+        assert_eq!(name, "src");
+        assert_eq!(children.len(), 1);
+        Ok(())
     }
 
     #[test]
-    fn entries_to_tree_strips_dot_slash() {
+    fn entries_to_tree_strips_dot_slash() -> TestResult<()> {
         let entries = vec![ArchiveEntry {
             path: "./README.md".into(),
             kind: EntryKind::File,
             data: b"hi".to_vec(),
+            executable: false,
         }];
         let tree = archive_entries_to_tree(&entries);
         assert_eq!(tree.len(), 1);
-        match &tree[0] {
-            TreeEntry::File { name, .. } => assert_eq!(name, "README.md"),
-            _ => panic!("expected file"),
-        }
+        let (name, _, _) = tree_file(&tree[0])?;
+        assert_eq!(name, "README.md");
+        Ok(())
     }
 
     #[test]
-    fn entries_to_tree_deeply_nested() {
+    fn entries_to_tree_deeply_nested() -> TestResult<()> {
         let entries = vec![ArchiveEntry {
             path: "a/b/c/d.txt".into(),
             kind: EntryKind::File,
             data: b"deep".to_vec(),
+            executable: false,
         }];
         let tree = archive_entries_to_tree(&entries);
         assert_eq!(tree.len(), 1);
-        match &tree[0] {
-            TreeEntry::Directory { name, children } => {
-                assert_eq!(name, "a");
-                assert_eq!(children.len(), 1);
-                match &children[0] {
-                    TreeEntry::Directory { name, children } => {
-                        assert_eq!(name, "b");
-                        match &children[0] {
-                            TreeEntry::Directory { name, children } => {
-                                assert_eq!(name, "c");
-                                match &children[0] {
-                                    TreeEntry::File { name, content, .. } => {
-                                        assert_eq!(name, "d.txt");
-                                        assert_eq!(content, b"deep");
-                                    }
-                                    _ => panic!("expected file"),
-                                }
-                            }
-                            _ => panic!("expected directory"),
-                        }
-                    }
-                    _ => panic!("expected directory"),
-                }
+        let (name, children) = tree_dir(&tree[0])?;
+        assert_eq!(name, "a");
+        assert_eq!(children.len(), 1);
+        let (name, children) = tree_dir(&children[0])?;
+        assert_eq!(name, "b");
+        let (name, children) = tree_dir(&children[0])?;
+        assert_eq!(name, "c");
+        let (name, content, _) = tree_file(&children[0])?;
+        assert_eq!(name, "d.txt");
+        assert_eq!(content, b"deep");
+        Ok(())
+    }
+
+    fn build_tar(files: &[(&str, &[u8], u32)]) -> std::io::Result<Vec<u8>> {
+        let mut buf = Vec::new();
+        {
+            let mut tar = tar::Builder::new(&mut buf);
+            for (path, content, mode) in files {
+                let mut header = tar::Header::new_gnu();
+                header.set_size(content.len() as u64);
+                header.set_mode(*mode);
+                header.set_cksum();
+                tar.append_data(&mut header, path, *content)?;
             }
-            _ => panic!("expected directory"),
+            tar.finish()?;
         }
+        Ok(buf)
+    }
+
+    fn build_tar_with_dirs(
+        dirs: &[&str],
+        files: &[(&str, &[u8], u32)],
+    ) -> std::io::Result<Vec<u8>> {
+        let mut buf = Vec::new();
+        {
+            let mut tar = tar::Builder::new(&mut buf);
+            for path in dirs {
+                let mut header = tar::Header::new_gnu();
+                header.set_entry_type(tar::EntryType::Directory);
+                header.set_size(0);
+                header.set_mode(0o755);
+                header.set_cksum();
+                tar.append_data(&mut header, path, std::io::empty())?;
+            }
+            for (path, content, mode) in files {
+                let mut header = tar::Header::new_gnu();
+                header.set_size(content.len() as u64);
+                header.set_mode(*mode);
+                header.set_cksum();
+                tar.append_data(&mut header, path, *content)?;
+            }
+            tar.finish()?;
+        }
+        Ok(buf)
+    }
+
+    const TEST_LIMITS: ExtractLimits = ExtractLimits {
+        max_bytes: 1 << 20,
+        max_files: 100,
+        max_file_bytes: 1 << 20,
+    };
+
+    #[test]
+    fn extract_preserves_executable_bit() -> TestResult<()> {
+        let tar_bytes = build_tar(&[
+            ("run.sh", b"#!/bin/sh\n".as_slice(), 0o755),
+            ("README.md", b"hi".as_slice(), 0o644),
+        ])?;
+        let entries = extract_tar(&tar_bytes, &TEST_LIMITS)?;
+        let flags: Vec<(&str, bool)> = entries
+            .iter()
+            .map(|e| (e.path.as_str(), e.executable))
+            .collect();
+        assert_eq!(flags, vec![("run.sh", true), ("README.md", false)]);
+        Ok(())
+    }
+
+    #[test]
+    fn executable_bit_round_trips_into_tree_hash() -> TestResult<()> {
+        // The archive-derived tree hash must equal the hash a publisher
+        // computes from a filesystem where run.sh has the executable bit set.
+        let tar_bytes = build_tar(&[
+            ("run.sh", b"#!/bin/sh\n".as_slice(), 0o755),
+            ("README.md", b"hi".as_slice(), 0o644),
+        ])?;
+        let entries = extract_tar(&tar_bytes, &TEST_LIMITS)?;
+        let archive_tree = archive_entries_to_tree(&entries);
+
+        let publisher_tree = vec![
+            TreeEntry::File {
+                name: "run.sh".into(),
+                content: b"#!/bin/sh\n".to_vec(),
+                executable: true,
+            },
+            TreeEntry::File {
+                name: "README.md".into(),
+                content: b"hi".to_vec(),
+                executable: false,
+            },
+        ];
+        let archive_hash = crate::tree::compute_hash_from_entries(&archive_tree, &[])?;
+        let publisher_hash = crate::tree::compute_hash_from_entries(&publisher_tree, &[])?;
+        assert_eq!(archive_hash, publisher_hash);
+
+        // Flipping the bit must change the hash (mode is hashed: 100755 vs 100644).
+        let mut flipped = publisher_tree;
+        if let TreeEntry::File { executable, .. } = &mut flipped[0] {
+            *executable = false;
+        }
+        let flipped_hash = crate::tree::compute_hash_from_entries(&flipped, &[])?;
+        assert_ne!(archive_hash, flipped_hash);
+        Ok(())
+    }
+
+    #[test]
+    fn extract_rejects_duplicate_normalized_paths() -> TestResult<()> {
+        let tar_bytes = build_tar(&[
+            ("./README.md", b"first".as_slice(), 0o644),
+            ("README.md", b"second".as_slice(), 0o644),
+        ])?;
+        expect_malicious(extract_tar(&tar_bytes, &TEST_LIMITS), "duplicate path")?;
+        Ok(())
+    }
+
+    #[test]
+    fn extract_rejects_portable_sibling_collision() -> TestResult<()> {
+        let tar_bytes = build_tar(&[
+            ("File.txt", b"upper".as_slice(), 0o644),
+            ("file.txt", b"lower".as_slice(), 0o644),
+        ])?;
+        expect_malicious(
+            extract_tar(&tar_bytes, &TEST_LIMITS),
+            "filename_portable_conflict",
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn extract_rejects_portable_file_vs_directory_collision() -> TestResult<()> {
+        let tar_bytes =
+            build_tar_with_dirs(&["FOO"], &[("foo/bar.txt", b"child".as_slice(), 0o644)])?;
+        expect_malicious(
+            extract_tar(&tar_bytes, &TEST_LIMITS),
+            "filename_portable_conflict",
+        )?;
+        Ok(())
     }
 }
