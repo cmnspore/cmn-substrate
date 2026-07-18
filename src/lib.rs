@@ -35,5 +35,6 @@ pub use uri::{
     CmnUriKind,
 };
 pub use util::{
-    compare_version_timestamps, local_dir_name, validate_timestamp_not_future, VersionOrder,
+    compare_version_timestamps, is_safe_local_path_segment, local_dir_name,
+    validate_timestamp_not_future, VersionOrder,
 };

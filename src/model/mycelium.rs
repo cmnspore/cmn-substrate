@@ -124,6 +124,22 @@ impl Mycelium {
         self.capsule.core.updated_at_epoch_ms = updated_at_epoch_ms;
     }
 
+    /// Remove (yank) a spore entry from the inventory by id.
+    ///
+    /// Returns `true` if an entry was removed. This only shrinks the mycelium
+    /// listing — the spore's own published manifest and archive are untouched,
+    /// so existing `cmn://<domain>/<hash>` references keep resolving. Re-adding
+    /// the same id later (unyank) is just [`add_spore`](Self::add_spore).
+    pub fn remove_spore(&mut self, id: &str, updated_at_epoch_ms: u64) -> bool {
+        let before = self.capsule.core.spores.len();
+        self.capsule.core.spores.retain(|entry| entry.id != id);
+        let removed = self.capsule.core.spores.len() != before;
+        if removed {
+            self.capsule.core.updated_at_epoch_ms = updated_at_epoch_ms;
+        }
+        removed
+    }
+
     pub fn uri(&self) -> &str {
         &self.capsule.uri
     }
@@ -241,6 +257,33 @@ mod tests {
             Some("New synopsis".to_string())
         );
         assert_eq!(mycelium.capsule.core.updated_at_epoch_ms, 30);
+    }
+
+    #[test]
+    fn test_mycelium_remove_spore() {
+        let mut mycelium = Mycelium::new("example.com", "Example", "", 10);
+        mycelium.add_spore("keep", "b3.keep", "keep", None, 20);
+        mycelium.add_spore("drop", "b3.drop", "drop", None, 30);
+
+        let removed = mycelium.remove_spore("drop", 40);
+
+        assert!(removed);
+        assert_eq!(mycelium.capsule.core.spores.len(), 1);
+        assert_eq!(mycelium.capsule.core.spores[0].id, "keep");
+        assert_eq!(mycelium.capsule.core.updated_at_epoch_ms, 40);
+    }
+
+    #[test]
+    fn test_mycelium_remove_spore_absent_is_noop() {
+        let mut mycelium = Mycelium::new("example.com", "Example", "", 10);
+        mycelium.add_spore("keep", "b3.keep", "keep", None, 20);
+
+        let removed = mycelium.remove_spore("missing", 40);
+
+        assert!(!removed);
+        assert_eq!(mycelium.capsule.core.spores.len(), 1);
+        // Timestamp is untouched when nothing was removed.
+        assert_eq!(mycelium.capsule.core.updated_at_epoch_ms, 20);
     }
 
     #[test]

@@ -2,30 +2,23 @@
   "$schema": "https://cmn.dev/schemas/v1/spore-core.json",
   "id": "cmn-substrate",
   "name": "CMN Substrate",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "domain": "cmn.dev",
   "key": "ed25519.7BmCWmBb2YeUWR7pmHvwAvi9wRm96VpZsJvZFSTfc2Uu",
-  "synopsis": "Shared Rust library for CMN — data models, cryptographic verification, tree hashing, URI parsing, and JSON schema validation used by both Hypha and Synapse",
+  "synopsis": "The shared Rust library for CMN — data models, cryptographic verification, tree hashing, URI parsing, and JSON-schema validation used by Hypha and Synapse.",
   "intent": [
     "Provide the common foundation shared between Hypha (client) and Synapse (indexer): spore/mycelium data models, Ed25519 signature verification, BLAKE3 content hashing, CMN URI parsing, and spore.core.json schema validation"
   ],
   "license": "MIT",
   "mutations": [
-    "Replace the previous_keys rotation model with an authenticated key history supporting retirement and revocation — KeyHistoryEntry/KeyHistoryStatus, a canonical cmn-key-rotation-v1 statement the outgoing key signs and verifiers check, and rotation-chain verification from a pinned key to the current key",
-    "Add domain-state pinning primitives for cmn.json — a monotonic serial and canonical capsules_digest, plus time-aware key-confirmation helpers, so clients can detect rollback, same-serial equivocation, and unproven key changes",
-    "Harden cmn.json parsing and schema — remove protocol_versions and endpoint-level protocol_version, set additionalProperties:false, and reject duplicate JSON object keys to prevent parser-differential attacks",
-    "Enforce the portable filename collision rule in tree hashing (portable_filename_key) — reject sibling path components that collide under NFD plus full Unicode case folding, including file-vs-directory conflicts",
-    "Preserve the executable bit through archive extraction — carry file mode on archive entries so tree-hash verification matches the filesystem and git paths, fixing spurious 100644 vs 100755 mismatches that wrongly failed archive delivery",
-    "Add explicit fetch size limits (DEFAULT_FETCH_MAX_BYTES, opt-in unlimited(), limited body reader) so JSON/manifest downloads cannot exhaust memory",
-    "Add taste latest-verdict selection (latest_taste_reports_by_taster) — newest report per taster identity and target",
-    "Verify capsule signatures against the effective author key for correct replicate/cross-domain key trust",
-    "Validate Ed25519 public keys on parse — enforce exact 32-byte length and reject weak/small-order points",
-    "Update conformance vectors (key rotation with revocation, taste gating, signature, algorithm registry, substrate) to match the hardened model"
+    "Add Mycelium::remove_spore to delist a spore from the inventory by id — the library primitive behind hypha mycelium spore yank, so a spore can be dropped without re-signing the whole graph",
+    "Reimplement local_dir_name on the agent-first-slug library (Unicode-aware slugging, dots preserved between decimal digits) and add is_safe_local_path_segment to validate an existing path segment without recomputing the canonical slug",
+    "Track agent-first-data 0.19.1 and upgrade crypto/schema dependencies (ed25519-dalek 3.0, jsonschema 0.48)"
   ],
   "bonds": [
     {
       "relation": "depends_on",
-      "uri": "cmn://cmn.dev/b3.q4WoPWAG2fXWtcgWsy1HL7qNx3ymZWCcxooFuG3hSTT",
+      "uri": "cmn://cmn.dev/b3.HBb3K4QRKMdNUhRYFZXiHf7uAN4zRpQMvgR9XFWzH7LP",
       "id": "cmn-spec",
       "reason": "Implements core CMN data structures and verification logic per the specification"
     }

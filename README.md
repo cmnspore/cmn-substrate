@@ -1,5 +1,7 @@
 # cmn-substrate
 
+The shared Rust library for CMN — data models, cryptographic verification, tree hashing, URI parsing, and JSON-schema validation used by Hypha and Synapse.
+
 Core library for the [Code Mycelial Network](https://cmn.dev) protocol. Zero I/O, WASM-compatible.
 
 ## What it does
