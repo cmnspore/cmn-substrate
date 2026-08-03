@@ -2,7 +2,7 @@
   "$schema": "https://cmn.dev/schemas/v1/spore-core.json",
   "id": "cmn-substrate",
   "name": "CMN Substrate",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "domain": "cmn.dev",
   "key": "ed25519.7BmCWmBb2YeUWR7pmHvwAvi9wRm96VpZsJvZFSTfc2Uu",
   "synopsis": "The shared Rust library for CMN — data models, cryptographic verification, tree hashing, URI parsing, and JSON-schema validation used by Hypha and Synapse.",
@@ -11,9 +11,8 @@
   ],
   "license": "MIT",
   "mutations": [
-    "Add Mycelium::remove_spore to delist a spore from the inventory by id — the library primitive behind hypha mycelium spore yank, so a spore can be dropped without re-signing the whole graph",
-    "Reimplement local_dir_name on the agent-first-slug library (Unicode-aware slugging, dots preserved between decimal digits) and add is_safe_local_path_segment to validate an existing path segment without recomputing the canonical slug",
-    "Track agent-first-data 0.19.1 and upgrade crypto/schema dependencies (ed25519-dalek 3.0, jsonschema 0.48)"
+    "Track agent-first-slug 0.6 with default features disabled, so local directory-name derivation follows the current upstream slug policy set without pulling in optional slug features the library never uses",
+    "Move JSON Schema validation to jsonschema 0.49 and zstd archive decoding to ruzstd 0.9, keeping payload validation and archive extraction on maintained upstream releases"
   ],
   "bonds": [
     {
