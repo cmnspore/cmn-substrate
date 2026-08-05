@@ -1062,6 +1062,21 @@ fn conformance_mycelium_vectors() -> Result<()> {
             "mycelium case {} nutrient order mismatch",
             case.id
         );
+
+        // Decoding must not quietly narrow an entry. `nutrient_method` is
+        // `additionalProperties: true` and `type` is an open string, so a valid
+        // entry may carry fields no implementation names — checking only the
+        // `type` above is what let a documented BOLT12 `offer` be dropped on
+        // read and then persisted, re-signed, with no trace of the loss.
+        // Re-encoding is compared against the case's own input, so this holds
+        // for every field a vector exercises without restating any of them.
+        let encoded_nutrients = serde_json::to_value(&mycelium.capsule.core.nutrients)
+            .with_context(|| format!("mycelium case {} nutrient re-encode failed", case.id))?;
+        assert_eq!(
+            encoded_nutrients, case.mycelium["capsule"]["core"]["nutrients"],
+            "mycelium case {} nutrients did not survive a decode/encode round trip",
+            case.id
+        );
     }
 
     Ok(())

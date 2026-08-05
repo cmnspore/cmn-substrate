@@ -56,6 +56,14 @@ pub struct MyceliumCoreTaste {
 }
 
 /// Single nutrient method entry
+///
+/// `type` is an open string and the spec's `nutrient_method` schema is
+/// `additionalProperties: true`, so a valid entry may carry fields this struct
+/// does not name — `offer`, for a BOLT12 lightning offer, is one the spec
+/// documents today. Without somewhere to keep them, serde drops unknown fields
+/// on read and the next write persists the truncated entry, re-signed, so
+/// nothing downstream can tell the value was ever there. `extra` holds them and
+/// re-emits them, which makes a round trip through this type lossless.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Nutrient {
     #[serde(rename = "type")]
@@ -74,6 +82,9 @@ pub struct Nutrient {
     pub token: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
+    /// Spec-valid fields this struct does not name, preserved verbatim.
+    #[serde(flatten, default, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 impl Mycelium {
@@ -329,6 +340,7 @@ mod tests {
                 chain_id: None,
                 token: None,
                 asset_id: None,
+                extra: Default::default(),
             },
             Nutrient {
                 kind: "evm".to_string(),
@@ -339,6 +351,7 @@ mod tests {
                 chain_id: Some(1),
                 token: Some("ETH".to_string()),
                 asset_id: None,
+                extra: Default::default(),
             },
         ];
 
@@ -365,6 +378,7 @@ mod tests {
             chain_id: None,
             token: None,
             asset_id: None,
+            extra: Default::default(),
         };
 
         let json = serde_json::to_string(&nutrient).unwrap_or_default();
@@ -378,5 +392,86 @@ mod tests {
         assert_eq!(parsed.address, Some("bc1qexampleaddress".to_string()));
         assert_eq!(parsed.recipient, Some("donations@example.com".to_string()));
         assert_eq!(parsed.url, Some("https://example.com/donate".to_string()));
+    }
+
+    /// A field the struct does not name must survive a read/write round trip.
+    ///
+    /// The spec documents BOLT12 `offer` for lightning and the schema is
+    /// `additionalProperties: true`, but this type named neither. Unknown keys
+    /// were dropped on read and the next write persisted the truncated entry —
+    /// re-signed, so the loss left no trace for a verifier to catch.
+    #[test]
+    fn test_nutrient_preserves_unknown_fields() {
+        let source = r#"{"type":"lightning","offer":"lno1qgsq","label":"BOLT12"}"#;
+
+        let parsed: Nutrient = serde_json::from_str(source).unwrap();
+        assert_eq!(parsed.kind, "lightning");
+        assert_eq!(parsed.label, Some("BOLT12".to_string()));
+        assert_eq!(
+            parsed.extra.get("offer").and_then(|v| v.as_str()),
+            Some("lno1qgsq"),
+            "an unnamed but spec-valid field must be captured, not dropped"
+        );
+
+        let round_tripped = serde_json::to_value(&parsed).unwrap();
+        assert_eq!(
+            round_tripped,
+            serde_json::from_str::<serde_json::Value>(source).unwrap(),
+            "serializing must reproduce the source entry exactly"
+        );
+    }
+
+    /// A nutrient with no unknown fields must not gain an empty `extra` key.
+    #[test]
+    fn test_nutrient_without_extra_serializes_unchanged() {
+        let source = r#"{"type":"onchain_btc","address":"bc1q"}"#;
+        let parsed: Nutrient = serde_json::from_str(source).unwrap();
+        assert!(parsed.extra.is_empty());
+        assert_eq!(
+            serde_json::to_value(&parsed).unwrap(),
+            serde_json::from_str::<serde_json::Value>(source).unwrap()
+        );
+    }
+
+    /// Preserved fields must sign and verify like any other.
+    ///
+    /// `#[serde(flatten)]` makes the type serialize as a map rather than a
+    /// struct, and JCS canonicalization is what the signature is taken over, so
+    /// the preservation above must not come at the cost of a signable value.
+    #[test]
+    fn test_nutrient_extra_survives_sign_and_verify() {
+        use crate::crypto::signature::{compute_signature, verify_json_signature};
+        use crate::crypto::SignatureAlgorithm;
+
+        let private_key = [7u8; 32];
+        let verifying = ed25519_dalek::SigningKey::from_bytes(&private_key).verifying_key();
+        let public_key = format!(
+            "ed25519.{}",
+            bs58::encode(verifying.to_bytes()).into_string()
+        );
+
+        let mut mycelium = Mycelium::new("example.com", "Example", "A test mycelium", 11);
+        mycelium.capsule.core.nutrients =
+            vec![serde_json::from_str(r#"{"type":"lightning","offer":"lno1qgsq"}"#).unwrap()];
+
+        let signature = compute_signature(
+            &mycelium.capsule.core,
+            SignatureAlgorithm::Ed25519,
+            &private_key,
+        )
+        .unwrap();
+        verify_json_signature(&mycelium.capsule.core, &signature, &public_key)
+            .expect("a nutrient carrying a preserved field must still verify");
+
+        // And the preserved field is inside what was signed: changing it must
+        // invalidate the signature rather than pass unnoticed.
+        mycelium.capsule.core.nutrients[0].extra.insert(
+            "offer".into(),
+            serde_json::Value::String("lno1TAMPER".into()),
+        );
+        assert!(
+            verify_json_signature(&mycelium.capsule.core, &signature, &public_key).is_err(),
+            "a preserved field must be covered by the signature"
+        );
     }
 }

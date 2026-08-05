@@ -1,6 +1,6 @@
 [package]
 name = "cmn-substrate"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2021"
 description = "The shared Rust library for CMN — data models, cryptographic verification, tree hashing, URI parsing, and JSON-schema validation used by Hypha and Synapse."
 license = "MIT"
