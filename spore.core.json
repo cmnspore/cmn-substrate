@@ -15,7 +15,7 @@
     "Tighten validation: reject uppercase and weak (all-zero) keys when recovering a public key from a hub subdomain, restrict URL schemes and hosts, and verify the declared size when extracting archives",
     "Embed the updated spore-core schema allowing absorbed_from to be authored, and extend schema validation",
     "Add signed capsule and key rotation conformance vectors and run them in the conformance tests",
-    "Move to Rust edition 2024 and upgrade dependencies (agent-first-slug 0.9, jsonschema 0.60, zstd 0.14, unicase 2.10)"
+    "Move to Rust edition 2024 and upgrade dependencies (agent-first-slug 0.9, jsonschema 0.61, zstd 0.14, unicase 2.10)"
   ],
   "bonds": [
     {

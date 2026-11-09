@@ -35,7 +35,7 @@ data-encoding = "2"
 ed25519-dalek = "3.0"
 unicase = "2.10"
 unicode-normalization = "0.1"
-jsonschema = { version = "0.60", default-features = false }
+jsonschema = { version = "0.61", default-features = false }
 chrono = "0.4"
 url = "2.5"
 tar = { version = "0.4", optional = true }
