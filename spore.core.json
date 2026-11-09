@@ -2,7 +2,7 @@
   "$schema": "https://cmn.dev/schemas/v1/spore-core.json",
   "id": "cmn-substrate",
   "name": "CMN Substrate",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "domain": "cmn.dev",
   "key": "ed25519.7BmCWmBb2YeUWR7pmHvwAvi9wRm96VpZsJvZFSTfc2Uu",
   "synopsis": "The shared Rust library for CMN — data models, cryptographic verification, tree hashing, URI parsing, and JSON-schema validation used by Hypha and Synapse.",
@@ -11,13 +11,16 @@
   ],
   "license": "MIT",
   "mutations": [
-    "Preserve nutrient fields the Nutrient struct does not name, so a spec-valid BOLT12 offer survives a decode/encode round trip instead of being dropped and re-signed away",
-    "Add a conformance case and a nutrient round-trip assertion covering additionalProperties data"
+    "Add Manifest and decode_manifest to decode a payload as either a spore or a mycelium and verify its signatures, and add parse_json_no_duplicates to reject duplicate JSON keys",
+    "Tighten validation: reject uppercase and weak (all-zero) keys when recovering a public key from a hub subdomain, restrict URL schemes and hosts, and verify the declared size when extracting archives",
+    "Embed the updated spore-core schema allowing absorbed_from to be authored, and extend schema validation",
+    "Add signed capsule and key rotation conformance vectors and run them in the conformance tests",
+    "Move to Rust edition 2024 and upgrade dependencies (agent-first-slug 0.9, jsonschema 0.60, zstd 0.14, unicase 2.10)"
   ],
   "bonds": [
     {
       "relation": "depends_on",
-      "uri": "cmn://cmn.dev/b3.AfcKgjH6e2nDWfoFPhSxEeEqhA9K8RY2jQN9SoE7PCN5",
+      "uri": "cmn://cmn.dev/b3.9UPrph5wpcXTHjuT4nzMUPdBsfe1sG1F9Co8wLhnky4M",
       "id": "cmn-spec",
       "reason": "Implements core CMN data structures and verification logic per the specification"
     }

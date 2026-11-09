@@ -1,0 +1,212 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "Deterministic signatures from public test seeds; never use these keys outside tests.",
+  "test_keys": {
+    "author": {
+      "seed_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+      "public_key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+    },
+    "host": {
+      "seed_hex": "2222222222222222222222222222222222222222222222222222222222222222",
+      "public_key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+    }
+  },
+  "cases": [
+    {
+      "id": "self_hosted",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://author.example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+          "core": {
+            "id": "signed-test",
+            "name": "Signed test",
+            "domain": "author.example",
+            "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+            "synopsis": "Public conformance fixture",
+            "intent": [
+              "test"
+            ],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [],
+            "size_bytes": 0,
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            },
+            "updated_at_epoch_ms": 1000
+          },
+          "core_signature": "ed25519.WuUMxnxRFNF1mXpuYUQ9ojpNZaoWj4br1NWmbTwNwdDsqMJwtrT9z7S7rJfYVjGHXxnJ15L8Y7aYgwVFCkVN7j9",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.3o5SLCqvigzYVWBdR2x5uUsm9aw7QoNuwmadh6VtWv8zibbzrXnNuRwUFJAH8LzsqJQudf85qrAUbf5bnnoC2YZL"
+      },
+      "author_key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+      "host_key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+      "expected_valid": true
+    },
+    {
+      "id": "replicated",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://host.example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+          "core": {
+            "id": "signed-test",
+            "name": "Signed test",
+            "domain": "author.example",
+            "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+            "synopsis": "Public conformance fixture",
+            "intent": [
+              "test"
+            ],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [],
+            "size_bytes": 0,
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            },
+            "updated_at_epoch_ms": 1000
+          },
+          "core_signature": "ed25519.WuUMxnxRFNF1mXpuYUQ9ojpNZaoWj4br1NWmbTwNwdDsqMJwtrT9z7S7rJfYVjGHXxnJ15L8Y7aYgwVFCkVN7j9",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.54c9GVTQVYpN96UC68yiPqzRDNhaP4NcWMZ4VogRDPuSaiwpAJFFsvKPDAfTBwsHxCgSQzSA7jhPvYptBDmNKZJG"
+      },
+      "author_key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+      "host_key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+      "expected_valid": true
+    },
+    {
+      "id": "swapped_keys",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://host.example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+          "core": {
+            "id": "signed-test",
+            "name": "Signed test",
+            "domain": "author.example",
+            "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+            "synopsis": "Public conformance fixture",
+            "intent": [
+              "test"
+            ],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [],
+            "size_bytes": 0,
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            },
+            "updated_at_epoch_ms": 1000
+          },
+          "core_signature": "ed25519.WuUMxnxRFNF1mXpuYUQ9ojpNZaoWj4br1NWmbTwNwdDsqMJwtrT9z7S7rJfYVjGHXxnJ15L8Y7aYgwVFCkVN7j9",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.54c9GVTQVYpN96UC68yiPqzRDNhaP4NcWMZ4VogRDPuSaiwpAJFFsvKPDAfTBwsHxCgSQzSA7jhPvYptBDmNKZJG"
+      },
+      "author_key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+      "host_key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+      "expected_valid": false
+    },
+    {
+      "id": "tampered_core",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://host.example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+          "core": {
+            "id": "signed-test",
+            "name": "Signed test",
+            "domain": "author.example",
+            "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+            "synopsis": "Tampered",
+            "intent": [
+              "test"
+            ],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [],
+            "size_bytes": 0,
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            },
+            "updated_at_epoch_ms": 1000
+          },
+          "core_signature": "ed25519.WuUMxnxRFNF1mXpuYUQ9ojpNZaoWj4br1NWmbTwNwdDsqMJwtrT9z7S7rJfYVjGHXxnJ15L8Y7aYgwVFCkVN7j9",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.54c9GVTQVYpN96UC68yiPqzRDNhaP4NcWMZ4VogRDPuSaiwpAJFFsvKPDAfTBwsHxCgSQzSA7jhPvYptBDmNKZJG"
+      },
+      "author_key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+      "host_key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+      "expected_valid": false
+    },
+    {
+      "id": "tampered_dist",
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://host.example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+          "core": {
+            "id": "signed-test",
+            "name": "Signed test",
+            "domain": "author.example",
+            "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+            "synopsis": "Public conformance fixture",
+            "intent": [
+              "test"
+            ],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [],
+            "size_bytes": 0,
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            },
+            "updated_at_epoch_ms": 1000
+          },
+          "core_signature": "ed25519.WuUMxnxRFNF1mXpuYUQ9ojpNZaoWj4br1NWmbTwNwdDsqMJwtrT9z7S7rJfYVjGHXxnJ15L8Y7aYgwVFCkVN7j9",
+          "dist": [
+            {
+              "type": "git",
+              "url": "https://host.example/tampered.git"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.54c9GVTQVYpN96UC68yiPqzRDNhaP4NcWMZ4VogRDPuSaiwpAJFFsvKPDAfTBwsHxCgSQzSA7jhPvYptBDmNKZJG"
+      },
+      "author_key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+      "host_key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+      "expected_valid": false
+    }
+  ]
+}

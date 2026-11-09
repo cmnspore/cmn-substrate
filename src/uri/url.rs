@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 
 /// Normalize and validate an HTTP(S) URL against SSRF and scheme injection.
 pub fn normalize_and_validate_url(raw: &str) -> Result<String> {
@@ -11,34 +11,52 @@ pub fn normalize_and_validate_url(raw: &str) -> Result<String> {
     }
 
     let host = parsed
-        .host_str()
+        .host()
         .ok_or_else(|| anyhow!("Empty hostname in URL: {}", trimmed))?;
-    let host_lc = host.to_ascii_lowercase();
 
-    let is_onion_or_i2p = host_lc.ends_with(".onion") || host_lc.ends_with(".i2p");
-    match parsed.scheme() {
-        "https" => {}
-        "http" if is_onion_or_i2p => {}
-        "http" => bail!(
-            "HTTP only allowed for .onion/.i2p domains, got: {}",
-            host_lc
-        ),
-        _ => bail!(
-            "URL must use https:// (or http:// for .onion/.i2p): {}",
-            trimmed
-        ),
-    }
-
-    if host_lc == "localhost" {
-        bail!("URL targets localhost: {}", trimmed);
-    }
-
-    if let Ok(ip) = host_lc.parse::<std::net::IpAddr>() {
-        if !is_public_ip(ip) {
-            bail!("URL targets private/reserved IP: {}", trimmed);
+    match host {
+        url::Host::Ipv4(v4) => {
+            if parsed.scheme() != "https" {
+                bail!("URL with IP address must use https://: {}", trimmed);
+            }
+            if !is_public_ip(std::net::IpAddr::V4(v4)) {
+                bail!("URL targets private/reserved IP: {}", trimmed);
+            }
         }
-    } else if !host_lc.contains('.') && !is_onion_or_i2p {
-        bail!("URL hostname must be a fully qualified domain: {}", trimmed);
+        url::Host::Ipv6(v6) => {
+            if parsed.scheme() != "https" {
+                bail!("URL with IP address must use https://: {}", trimmed);
+            }
+            if !is_public_ip(std::net::IpAddr::V6(v6)) {
+                bail!("URL targets private/reserved IP: {}", trimmed);
+            }
+        }
+        url::Host::Domain(domain) => {
+            let d = domain.to_ascii_lowercase();
+            let is_onion_or_i2p = d.ends_with(".onion") || d.ends_with(".i2p");
+            match parsed.scheme() {
+                "https" => {}
+                "http" if is_onion_or_i2p => {}
+                "http" => bail!("HTTP only allowed for .onion/.i2p domains, got: {}", d),
+                _ => bail!(
+                    "URL must use https:// (or http:// for .onion/.i2p): {}",
+                    trimmed
+                ),
+            }
+
+            let trimmed_d = d.trim_end_matches('.');
+            if trimmed_d.is_empty()
+                || trimmed_d == "localhost"
+                || trimmed_d.ends_with(".localhost")
+                || (!trimmed_d.contains('.') && !is_onion_or_i2p)
+            {
+                if trimmed_d == "localhost" || trimmed_d.ends_with(".localhost") {
+                    bail!("URL targets localhost: {}", trimmed);
+                } else {
+                    bail!("URL hostname must be a fully qualified domain: {}", trimmed);
+                }
+            }
+        }
     }
 
     Ok(parsed.as_str().trim_end_matches('/').to_string())
@@ -50,23 +68,31 @@ pub fn is_public_ip(ip: std::net::IpAddr) -> bool {
 
     match ip {
         IpAddr::V4(v4) => {
+            let octets = v4.octets();
             !v4.is_loopback()
                 && !v4.is_private()
                 && !v4.is_link_local()
                 && !v4.is_unspecified()
                 && !v4.is_broadcast()
-                && v4.octets()[0] != 0
-                && !(v4.octets()[0] == 100 && (v4.octets()[1] & 0xC0) == 64)
+                && !v4.is_multicast()
+                && !v4.is_documentation()
+                && octets[0] != 0
+                && !(octets[0] == 100 && (octets[1] & 0xC0) == 64)
+                && !(octets[0] == 198 && (octets[1] == 18 || octets[1] == 19))
+                && octets[0] < 240
         }
         IpAddr::V6(v6) => {
             if let Some(v4) = v6.to_ipv4_mapped() {
                 return is_public_ip(IpAddr::V4(v4));
             }
 
+            let segments = v6.segments();
             !v6.is_loopback()
                 && !v6.is_unspecified()
-                && (v6.segments()[0] & 0xfe00) != 0xfc00
-                && (v6.segments()[0] & 0xffc0) != 0xfe80
+                && !v6.is_multicast()
+                && !((segments[0] == 0x2001) && (segments[1] == 0x0db8))
+                && (segments[0] & 0xfe00) != 0xfc00
+                && (segments[0] & 0xffc0) != 0xfe80
         }
     }
 }
@@ -153,6 +179,14 @@ mod tests {
     fn test_normalize_and_validate_url_allows_public_ips() {
         assert!(normalize_and_validate_url("https://8.8.8.8/svc").is_ok());
         assert!(normalize_and_validate_url("https://1.1.1.1/svc").is_ok());
+        assert!(normalize_and_validate_url("https://[2606:4700:4700::1111]/svc").is_ok());
+    }
+
+    #[test]
+    fn test_normalize_and_validate_url_rejects_localhost_variants() {
+        assert!(normalize_and_validate_url("https://localhost./svc").is_err());
+        assert!(normalize_and_validate_url("https://sub.localhost/svc").is_err());
+        assert!(normalize_and_validate_url("https://sub.localhost./svc").is_err());
     }
 
     #[test]
@@ -181,6 +215,10 @@ mod tests {
         assert!(!is_public_ip(IpAddr::V4(Ipv4Addr::BROADCAST)));
         assert!(!is_public_ip(IpAddr::V4(Ipv4Addr::new(0, 1, 2, 3))));
         assert!(!is_public_ip(IpAddr::V4(Ipv4Addr::new(100, 64, 0, 1))));
+        assert!(!is_public_ip(IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1))));
+        assert!(!is_public_ip(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1))));
+        assert!(!is_public_ip(IpAddr::V4(Ipv4Addr::new(198, 18, 0, 1))));
+        assert!(!is_public_ip(IpAddr::V4(Ipv4Addr::new(240, 0, 0, 1))));
     }
 
     #[test]
@@ -192,6 +230,12 @@ mod tests {
         ))));
         assert!(!is_public_ip(IpAddr::V6(Ipv6Addr::LOCALHOST)));
         assert!(!is_public_ip(IpAddr::V6(Ipv6Addr::UNSPECIFIED)));
+        assert!(!is_public_ip(IpAddr::V6(Ipv6Addr::new(
+            0xff02, 0, 0, 0, 0, 0, 0, 1
+        ))));
+        assert!(!is_public_ip(IpAddr::V6(Ipv6Addr::new(
+            0x2001, 0x0db8, 0, 0, 0, 0, 0, 1
+        ))));
         assert!(!is_public_ip(IpAddr::V6(Ipv6Addr::new(
             0xfd00, 0, 0, 0, 0, 0, 0, 1
         ))));

@@ -11,9 +11,9 @@ pub struct AlgorithmBytes<A> {
     pub bytes: Vec<u8>,
 }
 
-pub use hash::{compute_blake3_hash, format_hash, parse_hash, HashAlgorithm};
-pub use key::{format_key, parse_key, KeyAlgorithm};
+pub use hash::{HashAlgorithm, compute_blake3_hash, format_hash, parse_hash};
+pub use key::{KeyAlgorithm, format_key, parse_key};
 pub use signature::{
-    compute_signature, format_signature, parse_signature, verify_json_signature, verify_signature,
-    SignatureAlgorithm,
+    SignatureAlgorithm, compute_signature, format_signature, parse_signature,
+    verify_json_signature, verify_signature,
 };

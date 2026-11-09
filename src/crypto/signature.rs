@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use serde::Serialize;
 
@@ -123,7 +123,7 @@ fn verify_ed25519(data: &[u8], signature_bytes: &[u8], public_key_bytes: &[u8]) 
 mod tests {
 
     use super::*;
-    use crate::{format_key, KeyAlgorithm};
+    use crate::{KeyAlgorithm, format_key};
     use serde_json::json;
 
     #[test]

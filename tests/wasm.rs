@@ -5,7 +5,7 @@
 
 use wasm_bindgen_test::*;
 
-use substrate::{compute_tree_hash_from_entries, SporeTree, TreeEntry};
+use substrate::{SporeTree, TreeEntry, compute_tree_hash_from_entries};
 
 #[wasm_bindgen_test]
 fn wasm_tree_hash_single_file() {

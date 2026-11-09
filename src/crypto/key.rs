@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ed25519_dalek::VerifyingKey;
 
 use super::AlgorithmBytes;
@@ -53,7 +53,7 @@ impl KeyAlgorithm {
     }
 }
 
-fn validate_key_bytes(algorithm: KeyAlgorithm, bytes: &[u8]) -> Result<()> {
+pub(crate) fn validate_key_bytes(algorithm: KeyAlgorithm, bytes: &[u8]) -> Result<()> {
     match algorithm {
         KeyAlgorithm::Ed25519 => {
             let bytes: [u8; 32] = bytes

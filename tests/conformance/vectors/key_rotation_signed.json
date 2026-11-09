@@ -1,0 +1,251 @@
+{
+  "version": "cmn-conformance-v1",
+  "description": "Deterministic signatures from public test seeds; never use these keys outside tests.",
+  "test_keys": {
+    "author": {
+      "seed_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+      "public_key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+    },
+    "host": {
+      "seed_hex": "2222222222222222222222222222222222222222222222222222222222222222",
+      "public_key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+    }
+  },
+  "cases": [
+    {
+      "id": "before_retirement",
+      "cmn": {
+        "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "capsules": [
+          {
+            "uri": "cmn://author.example",
+            "serial": 2,
+            "key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+            "endpoints": [],
+            "history": [
+              {
+                "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+                "status": "retired",
+                "retired_at_epoch_ms": 1000,
+                "replaced_by": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+                "effective_serial": 2,
+                "rotation_signature": "ed25519.4V5rdW2S6BvGGM1Qi7DPiQYqNR2Lpn9CyBocPTFbkVvexSd3G4LXRpqFEqdcP2KUERqeT1GwZwdeFn7GrSz4UMQu"
+              }
+            ]
+          }
+        ],
+        "capsule_signature": "ed25519.32bk6YafdUjKtM8SYLXS1BvKJTfqFaLFhAjiR3YWkSFh8YCqK4JuYHcBQfPbR4syw3zwY6RGCngpGwugFHuQ29DW"
+      },
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://author.example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+          "core": {
+            "id": "signed-test",
+            "name": "Signed test",
+            "domain": "author.example",
+            "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+            "synopsis": "Public conformance fixture",
+            "intent": [
+              "test"
+            ],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [],
+            "size_bytes": 0,
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            },
+            "updated_at_epoch_ms": 999
+          },
+          "core_signature": "ed25519.Q4PuZW4Ugj65aaSg2o6C3R28quSJRp3EPP2pmmEmAxuSYfwg9bfDCkZY1bW47UmdiAGWDQ7UGveCmaAZv6nqucR",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.5pgj3uVEyBQZBwhSZR7qFYtBX5b4em5KVbGp6HHA1PZCLKEbe25CnLwL4BY4HguwY6k3ffpbh9XpW7o3H6LGiSmH"
+      },
+      "expected_valid": true
+    },
+    {
+      "id": "at_retirement",
+      "cmn": {
+        "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "capsules": [
+          {
+            "uri": "cmn://author.example",
+            "serial": 2,
+            "key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+            "endpoints": [],
+            "history": [
+              {
+                "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+                "status": "retired",
+                "retired_at_epoch_ms": 1000,
+                "replaced_by": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+                "effective_serial": 2,
+                "rotation_signature": "ed25519.4V5rdW2S6BvGGM1Qi7DPiQYqNR2Lpn9CyBocPTFbkVvexSd3G4LXRpqFEqdcP2KUERqeT1GwZwdeFn7GrSz4UMQu"
+              }
+            ]
+          }
+        ],
+        "capsule_signature": "ed25519.32bk6YafdUjKtM8SYLXS1BvKJTfqFaLFhAjiR3YWkSFh8YCqK4JuYHcBQfPbR4syw3zwY6RGCngpGwugFHuQ29DW"
+      },
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://author.example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+          "core": {
+            "id": "signed-test",
+            "name": "Signed test",
+            "domain": "author.example",
+            "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+            "synopsis": "Public conformance fixture",
+            "intent": [
+              "test"
+            ],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [],
+            "size_bytes": 0,
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            },
+            "updated_at_epoch_ms": 1000
+          },
+          "core_signature": "ed25519.WuUMxnxRFNF1mXpuYUQ9ojpNZaoWj4br1NWmbTwNwdDsqMJwtrT9z7S7rJfYVjGHXxnJ15L8Y7aYgwVFCkVN7j9",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.3o5SLCqvigzYVWBdR2x5uUsm9aw7QoNuwmadh6VtWv8zibbzrXnNuRwUFJAH8LzsqJQudf85qrAUbf5bnnoC2YZL"
+      },
+      "expected_valid": true
+    },
+    {
+      "id": "after_retirement",
+      "cmn": {
+        "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "capsules": [
+          {
+            "uri": "cmn://author.example",
+            "serial": 2,
+            "key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+            "endpoints": [],
+            "history": [
+              {
+                "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+                "status": "retired",
+                "retired_at_epoch_ms": 1000,
+                "replaced_by": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+                "effective_serial": 2,
+                "rotation_signature": "ed25519.4V5rdW2S6BvGGM1Qi7DPiQYqNR2Lpn9CyBocPTFbkVvexSd3G4LXRpqFEqdcP2KUERqeT1GwZwdeFn7GrSz4UMQu"
+              }
+            ]
+          }
+        ],
+        "capsule_signature": "ed25519.32bk6YafdUjKtM8SYLXS1BvKJTfqFaLFhAjiR3YWkSFh8YCqK4JuYHcBQfPbR4syw3zwY6RGCngpGwugFHuQ29DW"
+      },
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://author.example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+          "core": {
+            "id": "signed-test",
+            "name": "Signed test",
+            "domain": "author.example",
+            "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+            "synopsis": "Public conformance fixture",
+            "intent": [
+              "test"
+            ],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [],
+            "size_bytes": 0,
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            },
+            "updated_at_epoch_ms": 1001
+          },
+          "core_signature": "ed25519.ZjWT7D7B4umgQCUqSHnnAryQ6cKP4xJ9uqaaZxrhgA5EoBMjkiyxJTKhMzAQkofcznXSzV4sFKWzP4DuvsD22si",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.3bembpRJTczVjePvfnPfV5ek8DD1HNzt8SVxh4fEhpBenmzqhDPMHmRDBBpVC6f3mM5xRfiX4qzF4jfXXDFjSQGQ"
+      },
+      "expected_valid": false
+    },
+    {
+      "id": "missing_signing_time",
+      "cmn": {
+        "$schema": "https://cmn.dev/schemas/v1/cmn.json",
+        "capsules": [
+          {
+            "uri": "cmn://author.example",
+            "serial": 2,
+            "key": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+            "endpoints": [],
+            "history": [
+              {
+                "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+                "status": "retired",
+                "retired_at_epoch_ms": 1000,
+                "replaced_by": "ed25519.Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+                "effective_serial": 2,
+                "rotation_signature": "ed25519.4V5rdW2S6BvGGM1Qi7DPiQYqNR2Lpn9CyBocPTFbkVvexSd3G4LXRpqFEqdcP2KUERqeT1GwZwdeFn7GrSz4UMQu"
+              }
+            ]
+          }
+        ],
+        "capsule_signature": "ed25519.32bk6YafdUjKtM8SYLXS1BvKJTfqFaLFhAjiR3YWkSFh8YCqK4JuYHcBQfPbR4syw3zwY6RGCngpGwugFHuQ29DW"
+      },
+      "spore": {
+        "$schema": "https://cmn.dev/schemas/v1/spore.json",
+        "capsule": {
+          "uri": "cmn://author.example/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+          "core": {
+            "id": "signed-test",
+            "name": "Signed test",
+            "domain": "author.example",
+            "key": "ed25519.F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+            "synopsis": "Public conformance fixture",
+            "intent": [
+              "test"
+            ],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [],
+            "size_bytes": 0,
+            "tree": {
+              "algorithm": "blob_tree_blake3_nfc",
+              "exclude_names": [],
+              "follow_rules": []
+            }
+          },
+          "core_signature": "ed25519.cyThWmSZ7Jik2a4vwBFxyT3YvuDZoUok1aCPXR5xiqcZtzS36eVkbhtrG8rbBgKXniuE2XLSLtQMSV8SsNBhTdq",
+          "dist": [
+            {
+              "type": "archive"
+            }
+          ]
+        },
+        "capsule_signature": "ed25519.2jiMNqwcvuQURfuWZorCZ5HR3PUua67s2Z47UpQ7iXjWpJP5wC1QX6NchkFzxisVDxGrBbQ5e8Ygp8coGmw7SUHT"
+      },
+      "expected_valid": false
+    }
+  ]
+}

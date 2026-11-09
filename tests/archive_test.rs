@@ -1,6 +1,6 @@
 #![cfg(any(feature = "archive-ruzstd", feature = "archive-zstd"))]
 
-use anyhow::{anyhow, Result as TestResult};
+use anyhow::{Result as TestResult, anyhow};
 use substrate::archive::*;
 
 fn make_tar(entries: &[(&str, &[u8])]) -> std::io::Result<Vec<u8>> {
@@ -156,12 +156,55 @@ fn test_extract_tar_single_file_limit() -> TestResult<()> {
     )
 }
 
+// USTAR hello.txt (mode 0644, mtime 0, "hello world\n"), encoded by native
+// zstd 1.5.7 at level 3. The pure Rust profile must decode the same bytes.
+const NATIVE_TAR_ZSTD: &[u8] = &[
+    40, 181, 47, 253, 4, 88, 157, 2, 0, 36, 3, 104, 101, 108, 108, 111, 46, 116, 120, 116, 0, 48,
+    48, 48, 48, 54, 52, 52, 48, 48, 48, 48, 48, 49, 55, 54, 48, 52, 0, 32, 48, 117, 115, 116, 97,
+    114, 0, 48, 48, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 10, 11, 0, 20, 5, 120,
+    160, 101, 27, 42, 185, 57, 10, 0, 192, 16, 7, 171, 152, 105, 67, 101, 240, 179, 24, 0, 199,
+    202, 101, 110, 2, 72, 86, 171, 169, 196,
+];
+
+#[test]
+fn native_zstd_fixture_decodes_and_extracts() -> TestResult<()> {
+    let decoded = decode_zstd(NATIVE_TAR_ZSTD, 10_240)?;
+    assert_eq!(decoded.len(), 10_240);
+    let entries = extract_tar_zstd(NATIVE_TAR_ZSTD, &default_limits())?;
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].path, "hello.txt");
+    assert_eq!(entries[0].data, b"hello world\n");
+    Ok(())
+}
+
+#[test]
+fn native_zstd_fixture_rejects_truncation_and_overflow() -> TestResult<()> {
+    assert!(decode_zstd(&NATIVE_TAR_ZSTD[..NATIVE_TAR_ZSTD.len() / 2], 10_240).is_err());
+    expect_malicious(decode_zstd(NATIVE_TAR_ZSTD, 10_239), "exceeds limit")
+}
+
+#[cfg(all(feature = "archive-ruzstd", not(feature = "archive-zstd")))]
+#[test]
+fn ruzstd_dictionary_decoding_is_explicitly_unsupported() -> TestResult<()> {
+    match decode_zstd_with_dict(NATIVE_TAR_ZSTD, b"dictionary", 10_240) {
+        Err(ExtractError::Failed(message)) => {
+            assert!(message.contains("Dictionary decoding is not supported"))
+        }
+        result => {
+            return Err(anyhow!(
+                "expected unsupported dictionary error, got {result:?}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(feature = "archive-zstd")]
 mod zstd_tests {
     use std::io::Write;
     use substrate::archive::*;
 
-    use super::{default_limits, expect_malicious, make_tar, TestResult};
+    use super::{TestResult, default_limits, expect_malicious, make_tar};
 
     fn zstd_compress(data: &[u8], level: i32) -> TestResult<Vec<u8>> {
         let mut encoder = zstd::Encoder::new(Vec::new(), level)?;
@@ -217,75 +260,61 @@ mod zstd_tests {
         assert_eq!(decoded, original.to_vec());
         Ok(())
     }
-}
 
-#[test]
-fn verify_cmn_spec_archive_hash() -> TestResult<()> {
-    let archive_path = "/tmp/test-archive.tar.zst";
-    if !std::path::Path::new(archive_path).exists() {
-        return Ok(());
-    }
-    let bytes = std::fs::read(archive_path)?;
-    let limits = substrate::archive::ExtractLimits {
-        max_bytes: 1_000_000_000,
-        max_files: 100_000,
-        max_file_bytes: 500_000_000,
-    };
-    let ae = substrate::archive::extract_tar_zstd(&bytes, &limits)?;
-
-    fn to_tree(entries: &[substrate::archive::ArchiveEntry]) -> Vec<substrate::TreeEntry> {
-        use std::collections::BTreeMap;
-        let mut files = Vec::new();
-        let mut dirs: BTreeMap<String, Vec<(String, &substrate::archive::ArchiveEntry)>> =
-            BTreeMap::new();
-        for e in entries {
-            if e.kind == substrate::archive::EntryKind::Directory {
-                continue;
-            }
-            let p = e.path.trim_start_matches("./").trim_start_matches('/');
-            if p.is_empty() {
-                continue;
-            }
-            if let Some(i) = p.find('/') {
-                dirs.entry(p[..i].to_string())
-                    .or_default()
-                    .push((p[i + 1..].to_string(), e));
-            } else {
-                files.push(substrate::TreeEntry::File {
-                    name: p.to_string(),
-                    content: e.data.clone(),
-                    executable: e.executable,
-                });
-            }
-        }
-        let mut result = Vec::new();
-        for (d, ch) in dirs {
-            let child_ae: Vec<substrate::archive::ArchiveEntry> = ch
-                .into_iter()
-                .map(|(r, e)| substrate::archive::ArchiveEntry {
-                    path: r,
-                    kind: e.kind.clone(),
-                    data: e.data.clone(),
-                    executable: e.executable,
-                })
-                .collect();
-            result.push(substrate::TreeEntry::Directory {
-                name: d,
-                children: to_tree(&child_ae),
+    #[test]
+    fn test_extract_and_verify_tar_zstd_multiple_small_files() -> TestResult<()> {
+        let mut entries = Vec::new();
+        let mut tree_entries = Vec::new();
+        let mut total_size: u64 = 0;
+        for i in 0..10 {
+            let name = format!("file_{i}.txt");
+            let content = format!("{i}").into_bytes();
+            total_size += content.len() as u64;
+            tree_entries.push(substrate::tree::TreeEntry::File {
+                name: name.clone(),
+                content: content.clone(),
+                executable: false,
             });
+            entries.push((name, content));
         }
-        result.extend(files);
-        result
-    }
 
-    let tree = to_tree(&ae);
-    let config = substrate::SporeTree {
-        algorithm: "blob_tree_blake3_nfc".to_string(),
-        exclude_names: vec![".git".to_string()],
-        follow_rules: vec![".gitignore".to_string()],
-    };
-    let hash = substrate::compute_tree_hash_from_entries(&tree, &config)?;
-    let expected = "b3.5DzAN1LM3aK9bESYV4nXRkekKgo2Q4Shx2sgsojk1bmn";
-    assert_eq!(hash, expected);
-    Ok(())
+        let slice_entries: Vec<(&str, &[u8])> = entries
+            .iter()
+            .map(|(n, c)| (n.as_str(), c.as_slice()))
+            .collect();
+        let tar_bytes = make_tar(&slice_entries)?;
+        let compressed = zstd_compress(&tar_bytes, 3)?;
+
+        let tree_hash = substrate::tree::compute_hash_from_entries(&tree_entries, &[])?;
+
+        let mut spore: substrate::Spore = serde_json::from_value(serde_json::json!({
+            "$schema": "https://cmn.dev/schemas/v1/spore.json",
+            "capsule": {
+                "uri": "cmn://example.com/placeholder",
+                "core": {
+                    "name": "test-small-files",
+                    "domain": "example.com",
+                    "synopsis": "Testing multiple small files framing",
+                    "intent": ["test"],
+                    "license": "MIT",
+                    "size_bytes": total_size,
+                    "tree": {
+                        "algorithm": substrate::tree::blob_tree_blake3_nfc::ALGORITHM,
+                        "hash": tree_hash
+                    }
+                },
+                "core_signature": "ed25519.fakesig",
+                "dist": []
+            },
+            "capsule_signature": "ed25519.fakesig"
+        }))?;
+
+        let uri_hash = spore.computed_uri_hash_from_tree_hash(&tree_hash)?;
+        spore.capsule.uri = format!("cmn://example.com/{uri_hash}");
+
+        let extracted =
+            extract_and_verify_tar_zstd(&compressed, &spore, &uri_hash, &default_limits())?;
+        assert_eq!(extracted.len(), 10);
+        Ok(())
+    }
 }

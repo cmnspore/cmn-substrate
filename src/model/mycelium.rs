@@ -440,8 +440,8 @@ mod tests {
     /// the preservation above must not come at the cost of a signable value.
     #[test]
     fn test_nutrient_extra_survives_sign_and_verify() {
-        use crate::crypto::signature::{compute_signature, verify_json_signature};
         use crate::crypto::SignatureAlgorithm;
+        use crate::crypto::signature::{compute_signature, verify_json_signature};
 
         let private_key = [7u8; 32];
         let verifying = ed25519_dalek::SigningKey::from_bytes(&private_key).verifying_key();

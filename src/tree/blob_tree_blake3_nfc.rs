@@ -5,11 +5,11 @@
 
 use std::collections::HashSet;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use unicase::UniCase;
 use unicode_normalization::UnicodeNormalization;
 
-use crate::crypto::{format_hash, HashAlgorithm};
+use crate::crypto::{HashAlgorithm, format_hash};
 
 pub const ALGORITHM: &str = "blob_tree_blake3_nfc";
 

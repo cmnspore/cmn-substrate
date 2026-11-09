@@ -3,8 +3,9 @@
 //! Uses embedded schemas for fast, offline validation.
 //! See docs/09_SCHEMA.md for specification.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde_json::Value;
+use std::sync::LazyLock;
 
 use crate::model::{CMN_SCHEMA, MYCELIUM_SCHEMA, SPORE_CORE_SCHEMA, SPORE_SCHEMA, TASTE_SCHEMA};
 
@@ -29,6 +30,32 @@ pub enum SchemaType {
 struct SchemaDescriptor {
     schema_type: SchemaType,
     schema_json: &'static str,
+}
+
+static VALIDATORS: LazyLock<[Result<jsonschema::Validator>; 5]> = LazyLock::new(|| {
+    [
+        SPORE_SCHEMA_JSON,
+        SPORE_CORE_SCHEMA_JSON,
+        MYCELIUM_SCHEMA_JSON,
+        CMN_SCHEMA_JSON,
+        TASTE_SCHEMA_JSON,
+    ]
+    .map(|source| {
+        let schema: Value =
+            serde_json::from_str(source).map_err(|e| anyhow!("Failed to parse schema: {}", e))?;
+        jsonschema::validator_for(&schema).map_err(|e| anyhow!("Failed to compile schema: {}", e))
+    })
+});
+
+fn validator(schema_type: SchemaType) -> Result<&'static jsonschema::Validator> {
+    let index = match schema_type {
+        SchemaType::Spore => 0,
+        SchemaType::SporeCore => 1,
+        SchemaType::Mycelium => 2,
+        SchemaType::Cmn => 3,
+        SchemaType::Taste => 4,
+    };
+    VALIDATORS[index].as_ref().map_err(|e| anyhow!("{}", e))
 }
 
 /// Validation error details
@@ -156,13 +183,7 @@ pub fn validate(doc: &Value) -> Result<SchemaType> {
     let descriptor =
         describe_schema(schema_url).ok_or_else(|| anyhow!("Unknown schema: {}", schema_url))?;
 
-    // 2. Get schema
-    let schema: Value = serde_json::from_str(descriptor.schema_json)
-        .map_err(|e| anyhow!("Failed to parse schema: {}", e))?;
-
-    // 3. Compile schema
-    let compiled = jsonschema::validator_for(&schema)
-        .map_err(|e| anyhow!("Failed to compile schema: {}", e))?;
+    let compiled = validator(descriptor.schema_type)?;
 
     // 4. Validate
     if let Err(e) = compiled.validate(doc) {
@@ -189,13 +210,7 @@ pub fn validate_detailed(doc: &Value) -> Result<(SchemaType, Vec<ValidationError
     let descriptor =
         describe_schema(schema_url).ok_or_else(|| anyhow!("Unknown schema: {}", schema_url))?;
 
-    // 2. Get schema
-    let schema: Value = serde_json::from_str(descriptor.schema_json)
-        .map_err(|e| anyhow!("Failed to parse schema: {}", e))?;
-
-    // 3. Compile schema
-    let compiled = jsonschema::validator_for(&schema)
-        .map_err(|e| anyhow!("Failed to compile schema: {}", e))?;
+    let compiled = validator(descriptor.schema_type)?;
 
     // 4. Validate and collect errors
     let errors: Vec<ValidationError> = compiled
@@ -212,7 +227,34 @@ pub fn validate_detailed(doc: &Value) -> Result<(SchemaType, Vec<ValidationError
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
+
+    #[test]
+    fn cached_validators_support_concurrent_and_detailed_validation() {
+        std::thread::scope(|scope| {
+            for schema_url in [
+                SPORE_SCHEMA,
+                SPORE_CORE_SCHEMA,
+                MYCELIUM_SCHEMA,
+                CMN_SCHEMA,
+                TASTE_SCHEMA,
+            ] {
+                scope.spawn(move || {
+                    let doc = json!({"$schema": schema_url});
+                    let schema_type = detect_schema_type(&doc).unwrap_or(SchemaType::Spore);
+                    let first = validator(schema_type);
+                    let second = validator(schema_type);
+                    assert!(first.is_ok());
+                    assert!(matches!((first, second), (Ok(a), Ok(b)) if std::ptr::eq(a, b)));
+                    assert!(validate(&doc).is_err());
+                    assert!(matches!(validate_detailed(&doc), Ok((kind, errors)) if kind == schema_type && !errors.is_empty()));
+                });
+            }
+        });
+        let unknown = json!({"$schema": "https://example.com/unknown.json"});
+        assert!(validate(&unknown).is_err());
+        assert!(validate_detailed(&unknown).is_err());
+    }
 
     #[test]
     fn test_get_schema_spore() {
@@ -515,10 +557,12 @@ mod tests {
 
         let result = validate(&doc);
         assert!(result.is_err());
-        assert!(result
-            .err()
-            .map(|e| e.to_string().contains("Missing $schema"))
-            .unwrap_or(false));
+        assert!(
+            result
+                .err()
+                .map(|e| e.to_string().contains("Missing $schema"))
+                .unwrap_or(false)
+        );
     }
 
     #[test]
@@ -625,6 +669,34 @@ mod tests {
         let result = validate(&doc);
         assert!(result.is_ok(), "Validation failed: {:?}", result.err());
         assert_eq!(result.ok(), Some(SchemaType::SporeCore));
+    }
+
+    #[test]
+    fn test_validate_spore_core_allows_absorbed_from_rejects_spawned_from() {
+        let mut doc = json!({
+            "$schema": SPORE_CORE_SCHEMA,
+            "id": "my-tool",
+            "name": "my-tool",
+            "domain": "example.com",
+            "synopsis": "A merged tool",
+            "intent": ["v1.0.0"],
+            "license": "MIT",
+            "mutations": [],
+            "bonds": [
+                {
+                    "uri": "cmn://dep.com/b3.3yMR7vZQ9hL2xKJdFtN8wPcB6sY1mXgU4eH5pTa2",
+                    "relation": "absorbed_from"
+                }
+            ],
+            "tree": { "algorithm": "blob_tree_blake3_nfc", "exclude_names": [], "follow_rules": [] }
+        });
+
+        // absorbed_from is allowed in spore.core.json
+        assert_eq!(validate(&doc).ok(), Some(SchemaType::SporeCore));
+
+        // spawned_from is forbidden in spore.core.json
+        doc["bonds"][0]["relation"] = json!("spawned_from");
+        assert!(validate(&doc).is_err());
     }
 
     #[test]

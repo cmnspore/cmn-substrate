@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
-use super::{apply_headers, json_from_response, text_from_response, FetchOptions};
+use super::{FetchOptions, apply_headers, json_from_response, text_from_response};
 use crate::BondRelation;
 
 const SYNAPSE_ERROR_BODY_MAX_BYTES: usize = 64 * 1024;
@@ -9,7 +9,7 @@ const SYNAPSE_ERROR_BODY_MAX_BYTES: usize = 64 * 1024;
 /// Synapse search response (Agent-First Data envelope).
 #[derive(Debug, Deserialize)]
 pub struct SearchResponse {
-    pub code: String,
+    pub kind: String,
     pub result: SearchResult,
 }
 
@@ -41,7 +41,7 @@ pub struct SearchResultItem {
 /// Synapse bonds response (Agent-First Data envelope).
 #[derive(Debug, Deserialize)]
 pub struct BondsResponse {
-    pub code: String,
+    pub kind: String,
     pub result: BondsResult,
     #[serde(default)]
     pub trace: Option<BondsTrace>,
@@ -79,7 +79,7 @@ pub struct BondNode {
 /// Synapse cmn response (GET /synapse/cmn/{domain}).
 #[derive(Debug, Deserialize)]
 pub struct SynapseCmnResponse {
-    pub code: String,
+    pub kind: String,
     pub result: SynapseCmnResult,
 }
 
@@ -97,7 +97,7 @@ pub struct SynapseCmnQuery {
 /// Synapse taste response (GET /synapse/taste/{hash}).
 #[derive(Debug, Deserialize)]
 pub struct SynapseTasteResponse {
-    pub code: String,
+    pub kind: String,
     pub result: SynapseTasteResult,
 }
 
@@ -117,7 +117,7 @@ pub struct SynapseTasteQuery {
 /// Synapse spore response (GET /synapse/spore/{hash}).
 #[derive(Debug, Deserialize)]
 pub struct SynapseSporeResponse {
-    pub code: String,
+    pub kind: String,
     pub result: SynapseSporeResult,
 }
 
@@ -137,7 +137,7 @@ pub struct SynapseSporeQuery {
 /// Synapse mycelium-by-hash response (GET /synapse/mycelium/{hash}).
 #[derive(Debug, Deserialize)]
 pub struct SynapseMyceliumByHashResponse {
-    pub code: String,
+    pub kind: String,
     pub result: SynapseMyceliumByHashResult,
 }
 

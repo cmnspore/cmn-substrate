@@ -2,14 +2,16 @@
 
 The shared Rust library for CMN — data models, cryptographic verification, tree hashing, URI parsing, and JSON-schema validation used by Hypha and Synapse.
 
-Core library for the [Code Mycelial Network](https://cmn.dev) protocol. Zero I/O, WASM-compatible.
+Core library for the [Code Mycelial Network](https://cmn.dev) protocol. The default
+build performs no I/O and supports WASM; HTTP and archive support are opt-in.
 
 ## What it does
 
 - **Data models** — Spore, Mycelium, Taste, CMN entry structs with serde serialization
 - **Cryptography** — Ed25519 signatures and BLAKE3 content hashing with JCS canonicalization
 - **Tree hashing** — Git-like Merkle tree (blob_tree_blake3_nfc) with Unicode NFC normalization
-- **URI parsing** — `cmn://domain/b3.hash` with domain and URL validation (rejects SSRF)
+- **URI parsing** — `cmn://domain/b3.hash` with domain and URL validation;
+  use `client-safe-dns` for HTTP clients that also filter resolved addresses
 - **Schema validation** — Embedded JSON Schema (draft 2020-12) for all protocol artifacts
 - **HTTP client** — Optional async client for fetching manifests, mycelium, taste reports (feature-gated)
 - **Archive extraction** — Optional tar+zstd extraction with security hardening (feature-gated)
@@ -27,17 +29,22 @@ Core library for the [Code Mycelial Network](https://cmn.dev) protocol. Zero I/O
 
 ```toml
 [dependencies]
-cmn-substrate = "0.1"
+cmn-substrate = "0.4"
+```
 
-# With HTTP client
-cmn-substrate = { version = "0.1", features = ["client-safe-dns"] }
+With the HTTP client and DNS filtering:
+
+```toml
+[dependencies]
+cmn-substrate = { version = "0.4", features = ["client-safe-dns"] }
 ```
 
 ```rust
 use substrate::{parse_uri, validate_schema, compute_blake3_hash};
 
 // Parse a CMN URI
-let uri = parse_uri("cmn://example.com/b3.abc123")?;
+let hash = compute_blake3_hash(b"example");
+let uri = parse_uri(&format!("cmn://example.com/{hash}"))?;
 
 // Validate a document against its schema
 let doc: serde_json::Value = serde_json::from_str(&json_str)?;

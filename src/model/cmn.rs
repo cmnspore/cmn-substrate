@@ -803,33 +803,39 @@ mod tests {
             signature,
         )
         .unwrap();
-        assert!(verify_key_rotation_statement(
-            "evil.example",
-            &previous_key,
-            &current_key,
-            serial,
-            retired_at_epoch_ms,
-            signature,
-        )
-        .is_err());
-        assert!(verify_key_rotation_statement(
-            "example.com",
-            &current_key,
-            &previous_key,
-            serial,
-            retired_at_epoch_ms,
-            signature,
-        )
-        .is_err());
-        assert!(verify_key_rotation_statement(
-            "example.com",
-            &previous_key,
-            &current_key,
-            serial + 1,
-            retired_at_epoch_ms,
-            signature,
-        )
-        .is_err());
+        assert!(
+            verify_key_rotation_statement(
+                "evil.example",
+                &previous_key,
+                &current_key,
+                serial,
+                retired_at_epoch_ms,
+                signature,
+            )
+            .is_err()
+        );
+        assert!(
+            verify_key_rotation_statement(
+                "example.com",
+                &current_key,
+                &previous_key,
+                serial,
+                retired_at_epoch_ms,
+                signature,
+            )
+            .is_err()
+        );
+        assert!(
+            verify_key_rotation_statement(
+                "example.com",
+                &previous_key,
+                &current_key,
+                serial + 1,
+                retired_at_epoch_ms,
+                signature,
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -853,9 +859,11 @@ mod tests {
         };
 
         capsule.verify_rotation_chain_from(&old_key).unwrap();
-        assert!(capsule
-            .verify_rotation_chain_from("ed25519.unknown")
-            .is_err());
+        assert!(
+            capsule
+                .verify_rotation_chain_from("ed25519.unknown")
+                .is_err()
+        );
     }
 
     #[test]

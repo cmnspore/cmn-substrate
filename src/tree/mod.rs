@@ -1,12 +1,12 @@
 //! Tree hashing for spores.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 pub mod blob_tree_blake3_nfc;
 pub mod walk;
 
-pub use blob_tree_blake3_nfc::{compute_hash_from_entries, portable_filename_key, TreeEntry};
-pub use walk::{flatten_entries, max_mtime, should_exclude, walk_dir, DirEntry, DirReader};
+pub use blob_tree_blake3_nfc::{TreeEntry, compute_hash_from_entries, portable_filename_key};
+pub use walk::{DirEntry, DirReader, flatten_entries, max_mtime, should_exclude, walk_dir};
 
 pub fn compute_tree_hash_from_entries(
     entries: &[TreeEntry],

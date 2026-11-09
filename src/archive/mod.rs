@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read};
 use std::path::{Component, Path};
 
-use crate::tree::{portable_filename_key, TreeEntry};
+use crate::tree::{TreeEntry, portable_filename_key};
 
 /// Limits for archive extraction to prevent resource exhaustion.
 pub struct ExtractLimits {
@@ -409,12 +409,14 @@ pub fn extract_and_verify_tar_zstd(
     expected_hash: &str,
     limits: &ExtractLimits,
 ) -> Result<Vec<ArchiveEntry>, ExtractError> {
-    // Use the spore's declared size as an additional decompression limit.
-    // Add 10% headroom for tar headers and metadata overhead.
+    // Tar adds 512-byte headers + up to 512-byte padding per entry + 1024-byte EOF.
+    // The decompressed tar stream cap accounts for tar entry framing, while exact
+    // content size is verified against spore payload via verify_content_hash_and_size.
     let spore_size = spore.capsule.core.size_bytes;
     let spore_limit = if spore_size > 0 {
         spore_size
             .saturating_add(spore_size / 10)
+            .saturating_add(limits.max_files.saturating_mul(1024))
             .saturating_add(4096)
     } else {
         limits.max_bytes
@@ -428,8 +430,8 @@ pub fn extract_and_verify_tar_zstd(
     let entries = extract_tar_zstd(archive_bytes, &effective_limits)?;
     let tree = archive_entries_to_tree(&entries);
     spore
-        .verify_content_hash(&tree, expected_hash)
-        .map_err(|e| ExtractError::Failed(format!("content hash mismatch: {e}")))?;
+        .verify_content_hash_and_size(&tree, expected_hash)
+        .map_err(|e| ExtractError::Failed(format!("content hash or size mismatch: {e}")))?;
     Ok(entries)
 }
 
@@ -440,7 +442,7 @@ pub fn extract_and_verify_tar_zstd(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::{anyhow, Result as TestResult};
+    use anyhow::{Result as TestResult, anyhow};
 
     fn tree_file(entry: &TreeEntry) -> TestResult<(&str, &[u8], bool)> {
         match entry {

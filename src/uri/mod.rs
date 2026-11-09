@@ -21,8 +21,8 @@ mod domain;
 mod url;
 
 pub use cmn::{
-    build_domain_uri, build_mycelium_uri, build_spore_uri, build_taste_uri,
-    normalize_taste_target_uri, parse_uri, CmnUri, CmnUriKind,
+    CmnUri, CmnUriKind, build_domain_uri, build_mycelium_uri, build_spore_uri, build_taste_uri,
+    normalize_taste_target_uri, parse_uri,
 };
 pub use domain::{cmn_entry_url, validate_domain};
 pub use url::{is_public_ip, normalize_and_validate_url};

@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 /// Build the well-known cmn.json entry URL for a domain
 ///

@@ -1,9 +1,12 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
-use super::{json_from_response, FetchOptions};
-use crate::{cmn_entry_url, validate_schema, CmnCapsuleEntry, CmnEntry, SchemaType};
+use super::{FetchOptions, json_from_response};
+use crate::{CmnCapsuleEntry, CmnEntry, SchemaType, cmn_entry_url, validate_schema};
 
 /// Fetch and validate cmn.json from a domain.
+///
+/// Only `opts.max_bytes` is used. Custom headers are never sent to domain
+/// endpoints, which may reference a third-party host.
 pub async fn fetch_cmn_entry(
     client: &reqwest::Client,
     domain: &str,
@@ -32,6 +35,8 @@ pub async fn fetch_cmn_entry(
 }
 
 /// Fetch a mycelium manifest JSON from a capsule's endpoint.
+///
+/// Only `opts.max_bytes` is used; custom headers are not sent.
 pub async fn fetch_mycelium_manifest(
     client: &reqwest::Client,
     capsule: &CmnCapsuleEntry,
@@ -51,6 +56,7 @@ pub async fn fetch_mycelium_manifest(
 /// The primary `hash` field carries authoritative domain metadata (name, bio, nutrients)
 /// and featured spores. The optional `hashes` array contains overflow shards whose
 /// spore lists are merged for search/indexing — metadata from overflow shards is ignored.
+/// Only `opts.max_bytes` is used; custom headers are not sent.
 pub async fn fetch_mycelium(
     client: &reqwest::Client,
     capsule: &CmnCapsuleEntry,
@@ -84,6 +90,8 @@ pub fn merge_mycelium_spores(base: &mut serde_json::Value, shard: &serde_json::V
 }
 
 /// Fetch a taste document JSON from a capsule's endpoint.
+///
+/// Only `opts.max_bytes` is used; custom headers are not sent.
 pub async fn fetch_taste(
     client: &reqwest::Client,
     capsule: &CmnCapsuleEntry,
@@ -99,6 +107,8 @@ pub async fn fetch_taste(
 }
 
 /// Fetch a spore manifest JSON from a capsule's endpoint.
+///
+/// Only `opts.max_bytes` is used; custom headers are not sent.
 pub async fn fetch_spore_manifest(
     client: &reqwest::Client,
     capsule: &CmnCapsuleEntry,

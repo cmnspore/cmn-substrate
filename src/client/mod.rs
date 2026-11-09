@@ -9,18 +9,18 @@ pub use domain::{
     merge_mycelium_spores,
 };
 pub use synapse::{
-    fetch_lineage, fetch_synapse_cmn, fetch_synapse_mycelium_by_hash, fetch_synapse_spore,
-    fetch_synapse_taste, fetch_taste_reports, post_synapse_pulse, search, BondNode, BondsQuery,
-    BondsResponse, BondsResult, BondsTrace, SearchResponse, SearchResponseQuery, SearchResult,
-    SearchResultItem, SynapseCmnQuery, SynapseCmnResponse, SynapseCmnResult,
-    SynapseMyceliumByHashQuery, SynapseMyceliumByHashResponse, SynapseMyceliumByHashResult,
-    SynapseSporeQuery, SynapseSporeResponse, SynapseSporeResult, SynapseTasteQuery,
-    SynapseTasteResponse, SynapseTasteResult,
+    BondNode, BondsQuery, BondsResponse, BondsResult, BondsTrace, SearchResponse,
+    SearchResponseQuery, SearchResult, SearchResultItem, SynapseCmnQuery, SynapseCmnResponse,
+    SynapseCmnResult, SynapseMyceliumByHashQuery, SynapseMyceliumByHashResponse,
+    SynapseMyceliumByHashResult, SynapseSporeQuery, SynapseSporeResponse, SynapseSporeResult,
+    SynapseTasteQuery, SynapseTasteResponse, SynapseTasteResult, fetch_lineage, fetch_synapse_cmn,
+    fetch_synapse_mycelium_by_hash, fetch_synapse_spore, fetch_synapse_taste, fetch_taste_reports,
+    post_synapse_pulse, search,
 };
 
-use anyhow::{anyhow, Result};
-use serde::de::{DeserializeOwned, Error as DeError, MapAccess, SeqAccess, Visitor};
+use anyhow::{Result, anyhow};
 use serde::Deserialize;
+use serde::de::{DeserializeOwned, Error as DeError, MapAccess, SeqAccess, Visitor};
 use std::collections::HashSet;
 use std::fmt;
 
@@ -37,7 +37,7 @@ pub const DEFAULT_FETCH_MAX_BYTES: usize = 64 * 1024 * 1024;
 pub struct FetchOptions {
     /// Maximum response body bytes. `None` means no limit (uses reqwest `.json()`).
     pub max_bytes: Option<usize>,
-    /// Extra headers to attach to the request.
+    /// Extra headers for Synapse API requests. Domain fetches ignore these.
     pub headers: Option<reqwest::header::HeaderMap>,
 }
 
@@ -69,19 +69,25 @@ impl FetchOptions {
         }
     }
 
-    /// Convenience: set a Bearer token (adds Authorization header).
-    pub fn with_bearer_token(token: &str) -> Self {
+    /// Set a sensitive Bearer token for Synapse API requests.
+    ///
+    /// Invalid header characters return an error without including the token.
+    pub fn with_bearer_token(token: &str) -> Result<Self> {
         let mut headers = reqwest::header::HeaderMap::new();
-        if let Ok(val) = format!("Bearer {token}").parse() {
-            headers.insert(reqwest::header::AUTHORIZATION, val);
-        }
-        Self {
+        let mut value = reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|_| anyhow!("Invalid Bearer token: unsupported header characters"))?;
+        value.set_sensitive(true);
+        headers.insert(reqwest::header::AUTHORIZATION, value);
+        Ok(Self {
             headers: Some(headers),
             ..Default::default()
-        }
+        })
     }
 
     /// Merge additional headers into this FetchOptions.
+    ///
+    /// Callers must mark credential header values with `set_sensitive(true)`
+    /// before passing them here. Domain fetches do not send custom headers.
     pub fn headers(mut self, extra: reqwest::header::HeaderMap) -> Self {
         match &mut self.headers {
             Some(existing) => existing.extend(extra),
@@ -271,12 +277,12 @@ where
     F: FnMut(u64, Option<u64>),
 {
     let total_bytes = response.content_length();
-    if let Some(cl) = total_bytes {
-        if cl > max_bytes {
-            return Err(anyhow!(
-                "Remote payload too large from {source}: {cl} bytes exceeds limit {max_bytes}"
-            ));
-        }
+    if let Some(cl) = total_bytes
+        && cl > max_bytes
+    {
+        return Err(anyhow!(
+            "Remote payload too large from {source}: {cl} bytes exceeds limit {max_bytes}"
+        ));
     }
 
     on_progress(0, total_bytes);
@@ -339,12 +345,12 @@ async fn read_body_limited(
     source: &str,
     max_bytes: usize,
 ) -> Result<Vec<u8>> {
-    if let Some(cl) = response.content_length() {
-        if cl > max_bytes as u64 {
-            return Err(anyhow!(
-                "Remote payload too large from {source}: {cl} bytes exceeds limit {max_bytes}"
-            ));
-        }
+    if let Some(cl) = response.content_length()
+        && cl > max_bytes as u64
+    {
+        return Err(anyhow!(
+            "Remote payload too large from {source}: {cl} bytes exceeds limit {max_bytes}"
+        ));
     }
 
     #[cfg(not(target_arch = "wasm32"))]

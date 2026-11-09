@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Context, Result};
-use serde::de::DeserializeOwned;
+use anyhow::{Context, Result, anyhow};
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
@@ -9,14 +9,14 @@ use unicode_normalization::UnicodeNormalization;
 
 use substrate::TreeEntry;
 use substrate::{
-    build_domain_uri, build_mycelium_uri, build_spore_uri, build_taste_uri,
-    classify_capsule_hosting, decide_key_trust, decode_cmn_entry, decode_mycelium, decode_spore,
-    evaluate_signed_capsule_validity, format_hash, format_key, format_signature, parse_hash,
-    parse_key, parse_signature, parse_uri, traverse_bond_graph, validate_schema, verify_signature,
     BondGraphNode, BondRelation, BondTraversalDirection, BondTraversalQuery, CapsuleHostingKind,
     CmnCapsuleEntry, CmnUriKind, DomainKeyConfirmation, GateAction, GateOperation, KeyHistoryEntry,
     KeyHistoryStatus, KeyTrustClass, KeyTrustDecision, KeyTrustWitnessPolicy, SchemaType, Spore,
-    SporeBond, SporeTree, TasteVerdict,
+    SporeBond, SporeTree, TasteVerdict, build_domain_uri, build_mycelium_uri, build_spore_uri,
+    build_taste_uri, classify_capsule_hosting, decide_key_trust, decode_cmn_entry, decode_mycelium,
+    decode_spore, evaluate_signed_capsule_validity, format_hash, format_key, format_signature,
+    parse_hash, parse_key, parse_signature, parse_uri, traverse_bond_graph, validate_schema,
+    verify_signature,
 };
 
 #[derive(Debug, Deserialize)]
@@ -73,6 +73,36 @@ struct CapsuleCase {
     is_replicate: bool,
     expected_valid: bool,
     error_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublicTestKey {
+    seed_hex: String,
+    public_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SignedVectorFile<T> {
+    version: String,
+    test_keys: HashMap<String, PublicTestKey>,
+    cases: Vec<T>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SignedCapsuleCase {
+    id: String,
+    spore: Value,
+    author_key: String,
+    host_key: String,
+    expected_valid: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct SignedRotationCase {
+    id: String,
+    cmn: Value,
+    spore: Value,
+    expected_valid: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -172,6 +202,9 @@ struct MyceliumCase {
     expected_spore_hashes: Vec<String>,
     expected_taste_targets: Vec<String>,
     expected_nutrient_types: Vec<String>,
+    cmn: Option<Value>,
+    #[serde(default)]
+    overflow_shards: Vec<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -237,7 +270,9 @@ const INCLUDED_VECTORS: &[&str] = &[
     "blob_tree_blake3_nfc",
     "bond_traversal",
     "capsule",
+    "capsule_signed",
     "key_rotation",
+    "key_rotation_signed",
     "mycelium",
     "signature",
     "spore",
@@ -297,8 +332,16 @@ fn conformance_manifest_integrity() -> Result<()> {
         ),
         ("capsule", include_str!("conformance/vectors/capsule.json")),
         (
+            "capsule_signed",
+            include_str!("conformance/vectors/capsule_signed.json"),
+        ),
+        (
             "key_rotation",
             include_str!("conformance/vectors/key_rotation.json"),
+        ),
+        (
+            "key_rotation_signed",
+            include_str!("conformance/vectors/key_rotation_signed.json"),
         ),
         (
             "mycelium",
@@ -811,17 +854,124 @@ fn conformance_capsule_vectors() -> Result<()> {
             case.id
         );
 
-        if let Some(error_code) = case.error_code.as_deref() {
-            if !case.expected_valid {
-                assert_eq!(
-                    error_code, "sig_failed",
-                    "capsule case {} unexpected error_code",
-                    case.id
-                );
-            }
+        if let Some(error_code) = case.error_code.as_deref()
+            && !case.expected_valid
+        {
+            assert_eq!(
+                error_code, "sig_failed",
+                "capsule case {} unexpected error_code",
+                case.id
+            );
         }
     }
 
+    Ok(())
+}
+
+fn public_test_seeds(keys: &HashMap<String, PublicTestKey>) -> Result<HashMap<String, [u8; 32]>> {
+    keys.values()
+        .map(|key| {
+            let bytes = data_encoding::HEXLOWER.decode(key.seed_hex.as_bytes())?;
+            let seed: [u8; 32] = bytes
+                .try_into()
+                .map_err(|_| anyhow!("test seed must have 32 bytes"))?;
+            let signing_key = ed25519_dalek::SigningKey::from_bytes(&seed);
+            assert_eq!(
+                format_key(
+                    substrate::KeyAlgorithm::Ed25519,
+                    &signing_key.verifying_key().to_bytes()
+                ),
+                key.public_key
+            );
+            Ok((key.public_key.clone(), seed))
+        })
+        .collect()
+}
+
+fn assert_reproducible_signature(value: &Value, signature: &str, seed: &[u8; 32]) -> Result<()> {
+    assert_eq!(
+        substrate::compute_signature(value, substrate::SignatureAlgorithm::Ed25519, seed)?,
+        signature
+    );
+    Ok(())
+}
+
+#[test]
+fn conformance_real_capsule_signatures() -> Result<()> {
+    let file: SignedVectorFile<SignedCapsuleCase> =
+        parse_vectors(include_str!("conformance/vectors/capsule_signed.json"))?;
+    assert_eq!(file.version, "cmn-conformance-v1");
+    let seeds = public_test_seeds(&file.test_keys)?;
+    assert_eq!(file.cases.len(), 5);
+    for case in file.cases {
+        validate_schema(&case.spore)?;
+        let spore = decode_spore(&case.spore)?;
+        assert_eq!(
+            spore
+                .verify_signatures(&case.host_key, &case.author_key)
+                .is_ok(),
+            case.expected_valid,
+            "{}",
+            case.id
+        );
+        if case.expected_valid {
+            assert_reproducible_signature(
+                &case.spore["capsule"]["core"],
+                &spore.capsule.core_signature,
+                &seeds[&case.author_key],
+            )?;
+            assert_reproducible_signature(
+                &case.spore["capsule"],
+                &spore.capsule_signature,
+                &seeds[&case.host_key],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn conformance_real_retired_key_content() -> Result<()> {
+    let file: SignedVectorFile<SignedRotationCase> =
+        parse_vectors(include_str!("conformance/vectors/key_rotation_signed.json"))?;
+    assert_eq!(file.version, "cmn-conformance-v1");
+    let seeds = public_test_seeds(&file.test_keys)?;
+    assert_eq!(file.cases.len(), 4);
+    for case in file.cases {
+        validate_schema(&case.cmn)?;
+        let entry = decode_cmn_entry(&case.cmn)?;
+        let capsule = entry.primary_capsule()?;
+        entry.verify_signature(&capsule.key)?;
+        assert_reproducible_signature(
+            &case.cmn["capsules"],
+            &entry.capsule_signature,
+            &seeds[&capsule.key],
+        )?;
+        let raw_core = &case.spore["capsule"]["core"];
+        let author_key = raw_core["key"]
+            .as_str()
+            .ok_or_else(|| anyhow!("missing content key"))?;
+        // Even the missing-time case has genuine signatures; its lack of
+        // signing-time evidence, rather than a made-up signature, rejects it.
+        let core_signature = case.spore["capsule"]["core_signature"]
+            .as_str()
+            .ok_or_else(|| anyhow!("missing core signature"))?;
+        substrate::verify_json_signature(raw_core, core_signature, author_key)?;
+        assert_reproducible_signature(raw_core, core_signature, &seeds[author_key])?;
+        let valid = (|| -> Result<()> {
+            validate_schema(&case.spore)?;
+            let spore = decode_spore(&case.spore)?;
+            let signing_time = raw_core["updated_at_epoch_ms"]
+                .as_u64()
+                .ok_or_else(|| anyhow!("missing signing time"))?;
+            if !capsule.confirms_key_at(author_key, signing_time) {
+                return Err(anyhow!("retired key is not valid at content signing time"));
+            }
+            spore.verify_signatures(author_key, author_key)
+        })()
+        .is_ok();
+        assert_eq!(valid, case.expected_valid, "{}", case.id);
+    }
     Ok(())
 }
 
@@ -999,6 +1149,45 @@ fn conformance_mycelium_vectors() -> Result<()> {
     assert_eq!(file.version, "cmn-conformance-v1");
 
     for case in file.cases {
+        #[cfg(feature = "client")]
+        let mut case = case;
+        if let Some(cmn) = &case.cmn {
+            validate_schema(cmn)?;
+            let entry = decode_cmn_entry(cmn)?;
+            let endpoint = entry.primary_capsule()?;
+            assert_eq!(
+                endpoint.mycelium_hash(),
+                case.mycelium["capsule"]["uri"]
+                    .as_str()
+                    .and_then(|uri| uri.rsplit('/').next())
+            );
+            assert_eq!(endpoint.mycelium_hashes().len(), case.overflow_shards.len());
+            for (hash, shard) in endpoint.mycelium_hashes().iter().zip(&case.overflow_shards) {
+                validate_schema(shard)?;
+                assert_eq!(
+                    shard["capsule"]["uri"]
+                        .as_str()
+                        .and_then(|uri| uri.rsplit('/').next()),
+                    Some(hash.as_str())
+                );
+            }
+            #[cfg(feature = "client")]
+            {
+                let primary_core = case.mycelium["capsule"]["core"].clone();
+                for shard in &case.overflow_shards {
+                    substrate::client::merge_mycelium_spores(&mut case.mycelium, shard);
+                }
+                for field in ["name", "domain", "key", "synopsis", "bio", "nutrients"] {
+                    assert_eq!(
+                        case.mycelium["capsule"]["core"][field], primary_core[field],
+                        "{} metadata {field}",
+                        case.id
+                    );
+                }
+            }
+            #[cfg(not(feature = "client"))]
+            continue;
+        }
         let schema_type = validate_schema(&case.mycelium)
             .with_context(|| format!("mycelium case {} schema validation failed", case.id))?;
         assert_eq!(schema_type, SchemaType::Mycelium);

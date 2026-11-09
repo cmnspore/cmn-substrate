@@ -137,10 +137,10 @@ pub fn max_mtime(reader: &dyn DirReader, dir_path: &Path, exclude_names: &[Strin
         }
 
         if child.is_file {
-            if let Some(ms) = reader.mtime_ms(&child_path)? {
-                if ms > max_ms {
-                    max_ms = ms;
-                }
+            if let Some(ms) = reader.mtime_ms(&child_path)?
+                && ms > max_ms
+            {
+                max_ms = ms;
             }
         } else if child.is_dir {
             let sub = max_mtime(reader, &child_path, exclude_names)?;
@@ -208,15 +208,15 @@ mod tests {
             if !self.dirs.contains_key(path) {
                 self.dirs.insert(path.to_path_buf(), Vec::new());
             }
-            if let Some(parent) = path.parent() {
-                if parent != path {
-                    let name = path.file_name().unwrap().to_string_lossy().to_string();
-                    let siblings = self.dirs.entry(parent.to_path_buf()).or_default();
-                    if !siblings.contains(&name) {
-                        siblings.push(name);
-                    }
-                    self.ensure_dir(parent);
+            if let Some(parent) = path.parent()
+                && parent != path
+            {
+                let name = path.file_name().unwrap().to_string_lossy().to_string();
+                let siblings = self.dirs.entry(parent.to_path_buf()).or_default();
+                if !siblings.contains(&name) {
+                    siblings.push(name);
                 }
+                self.ensure_dir(parent);
             }
         }
 

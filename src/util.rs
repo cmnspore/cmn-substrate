@@ -1,10 +1,10 @@
 //! Local projection helpers and timestamp utilities.
 
 use agent_first_slug::{
-    slugify, validate_slug, AllowedCharacterSet, DotHandlingPolicy, EmptyOutputPolicy, SlugConfig,
-    SlugValidationPolicy, TransliterationPolicy,
+    AllowedCharacterSet, DotHandlingPolicy, EmptyOutputPolicy, SlugConfig, SlugValidationPolicy,
+    TransliterationPolicy, slugify, validate_slug,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 // -- Local directory naming --
 
@@ -80,7 +80,7 @@ pub fn validate_timestamp_not_future(
     now_epoch_ms: u64,
     max_skew_ms: u64,
 ) -> Result<()> {
-    if epoch_ms > now_epoch_ms + max_skew_ms {
+    if epoch_ms.saturating_sub(now_epoch_ms) > max_skew_ms {
         return Err(anyhow!(
             "Timestamp {} is {}ms in the future (tolerance: {}ms)",
             epoch_ms,
@@ -163,6 +163,21 @@ mod tests {
     }
 
     #[test]
+    fn test_local_dir_name_unicode_case_expansion() {
+        for (input, expected) in [
+            ("İstanbul", "i-stanbul"),
+            ("İ", "i"),
+            ("CAFÉ 世界", "café-世界"),
+        ] {
+            let from_id = local_dir_name(Some(input), None, "b3.hash");
+            let from_name = local_dir_name(None, Some(input), "b3.hash");
+            assert_eq!(from_id, expected);
+            assert_eq!(from_name, expected);
+            assert!(is_safe_local_path_segment(&from_id));
+        }
+    }
+
+    #[test]
     fn test_is_safe_local_path_segment() {
         assert!(is_safe_local_path_segment("Foo"));
         assert!(is_safe_local_path_segment("foo_bar"));
@@ -187,5 +202,26 @@ mod tests {
     #[test]
     fn test_validate_timestamp_not_future_rejects_far_future() {
         assert!(validate_timestamp_not_future(111, 100, 10).is_err());
+    }
+
+    #[test]
+    fn test_validate_timestamp_boundaries_without_overflow() {
+        for (epoch_ms, now_epoch_ms, max_skew_ms, valid) in [
+            (100, 100, 0, true),
+            (99, 100, 0, true),
+            (101, 100, 0, false),
+            (110, 100, 10, true),
+            (111, 100, 10, false),
+            (u64::MAX, u64::MAX, 1, true),
+            (u64::MAX, u64::MAX - 1, 1, true),
+            (u64::MAX, u64::MAX - 2, 1, false),
+            (u64::MAX, 0, u64::MAX, true),
+        ] {
+            assert_eq!(
+                validate_timestamp_not_future(epoch_ms, now_epoch_ms, max_skew_ms).is_ok(),
+                valid,
+                "epoch={epoch_ms}, now={now_epoch_ms}, skew={max_skew_ms}"
+            );
+        }
     }
 }

@@ -1,8 +1,3 @@
-# Conformance vectors — copies from cmn-spec, DO NOT EDIT HERE
-#
-# Authoritative source: cmn-spec/conformance/v1/
-# To sync: cp -r cmn-spec/conformance/v1/* cmn-substrate/tests/conformance/
-
 # CMN Conformance Vectors (v1)
 
 This directory provides implementation-neutral conformance vectors for every
@@ -17,13 +12,15 @@ normative core spec chapter plus supporting protocol behaviors:
 - `algorithm_registry`: `07-algorithm-registry` prefix parsing and tree algorithm handling
 - `signature`: Ed25519 verification over canonical JSON bytes
 - `capsule`: Two-layer signature verification for authored vs hosted capsules
+- `capsule_signed`: Five actual Ed25519 capsules covering hosting, swapped keys and tampering
 - `key_rotation`: Domain key rollover trust behavior
+- `key_rotation_signed`: Four signed content cases at the retired-key time boundary
 - `blob_tree_blake3_nfc`: Tree-root behavior from a virtual file tree
 - `bond_traversal`: BFS/DFS graph traversal over spore bonds
 - `taste_gating`: Operation-specific gating for spawn/grow/absorb/bond
 
-`overview.md`, `glossary.md`, and `example.md` are non-normative/supporting
-documents, so they are not represented as standalone vector files.
+`glossary.md` and `example.md` are non-normative/supporting documents, so they
+are not represented as standalone vector files.
 
 The authoritative machine-readable entry point is [`manifest.json`](./manifest.json). Every JSON file in [`vectors/`](./vectors/) MUST be listed there.
 
@@ -34,6 +31,17 @@ python3 check_manifest.py
 ```
 
 Passing all manifest-listed vectors indicates baseline protocol compatibility for these areas.
+
+The signed fixtures publish their deterministic Ed25519 test seeds in `test_keys`.
+They are public test data and MUST NOT be used for real identities. Regenerate them
+with `node generate_signed_vectors.mjs` (Node.js built-ins only). Each signature
+uses JCS canonical JSON; the Rust runner also recomputes signatures from the seeds.
+The URI hashes in these signed fixtures are structural placeholders. These cases
+exercise signatures and key lifecycle policy, not archive/tree content addressing.
+Retirement cases use the signed core's `updated_at_epoch_ms`, a timestamp declared
+by the signer. They verify the inclusive policy boundary, not protection against
+backdating by someone who holds a retired private key. Missing signing time is
+rejected as required by 01-substrate §1.2.3.
 
 ## Vector Schema
 

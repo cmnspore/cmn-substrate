@@ -294,7 +294,7 @@ async fn search_success() {
     let server = MockServer::start().await;
 
     let response = json!({
-        "code": "ok",
+        "kind": "result",
         "result": {
             "query": {
                 "text": "test",
@@ -346,7 +346,7 @@ async fn search_with_all_filters() {
     let server = MockServer::start().await;
 
     let response = json!({
-        "code": "ok",
+        "kind": "result",
         "result": {
             "query": {"text": "tools", "domain": "cmn.dev", "license": "MIT", "limit": 5},
             "spores": []
@@ -386,7 +386,7 @@ async fn search_bearer_token() {
     let server = MockServer::start().await;
 
     let response = json!({
-        "code": "ok",
+        "kind": "result",
         "result": {
             "query": {"text": "q", "domain": null, "license": null, "limit": 1},
             "spores": []
@@ -409,7 +409,7 @@ async fn search_bearer_token() {
         None,
         None,
         1,
-        substrate::client::FetchOptions::with_bearer_token("secret-token"),
+        substrate::client::FetchOptions::with_bearer_token("secret-token").unwrap(),
     )
     .await;
 
@@ -452,7 +452,7 @@ async fn fetch_lineage_success() {
     let server = MockServer::start().await;
 
     let response = json!({
-        "code": "ok",
+        "kind": "result",
         "result": {
             "query": {"hash": "b3.abc", "max_depth": 3},
             "bonds": [{
@@ -528,7 +528,7 @@ async fn fetch_taste_reports_success() {
     let server = MockServer::start().await;
 
     let response = json!({
-        "code": "ok",
+        "kind": "result",
         "result": {
             "tastes": [
                 {"verdict": "safe", "domain": "taster.example.com"}
@@ -559,7 +559,7 @@ async fn fetch_taste_reports_success() {
 async fn fetch_taste_reports_with_token() {
     let server = MockServer::start().await;
 
-    let response = json!({"code": "ok", "result": {"tastes": []}});
+    let response = json!({"kind": "result", "result": {"tastes": []}});
 
     Mock::given(method("GET"))
         .and(path("/synapse/spore/b3.xyz/tastes"))
@@ -573,7 +573,7 @@ async fn fetch_taste_reports_with_token() {
         &client,
         &server.uri(),
         "b3.xyz",
-        substrate::client::FetchOptions::with_bearer_token("my-token"),
+        substrate::client::FetchOptions::with_bearer_token("my-token").unwrap(),
     )
     .await;
 
@@ -637,12 +637,24 @@ fn fetch_options_new_equals_default() {
 
 #[test]
 fn fetch_options_bearer_token_keeps_default_limit() {
-    let opts = FetchOptions::with_bearer_token("secret-token");
+    let opts = FetchOptions::with_bearer_token("secret-token").unwrap();
     assert_eq!(
         opts.max_bytes,
         Some(substrate::client::DEFAULT_FETCH_MAX_BYTES)
     );
     assert!(opts.headers.is_some());
+    let header = &opts.headers.as_ref().unwrap()[reqwest::header::AUTHORIZATION];
+    assert!(header.is_sensitive());
+    assert_eq!(header.to_str().unwrap(), "Bearer secret-token");
+    assert!(!format!("{opts:?}").contains("secret-token"));
+}
+
+#[test]
+fn fetch_options_rejects_invalid_bearer_without_disclosing_it() {
+    let token = "credential\nnot-a-header";
+    let error = FetchOptions::with_bearer_token(token).unwrap_err();
+    assert!(!error.to_string().contains(token));
+    assert!(error.to_string().contains("Invalid Bearer token"));
 }
 
 // ---------------------------------------------------------------------------
@@ -805,7 +817,7 @@ async fn fetch_synapse_spore_success() {
     let server = MockServer::start().await;
 
     let response = json!({
-        "code": "ok",
+        "kind": "result",
         "result": {
             "query": {"hash": "b3.abc123"},
             "spore": {
@@ -844,7 +856,7 @@ async fn fetch_synapse_spore_success() {
 
     assert!(result.is_ok());
     let resp = result.unwrap();
-    assert_eq!(resp.code, "ok");
+    assert_eq!(resp.kind, "result");
     assert_eq!(resp.result.query.hash, "b3.abc123");
     assert_eq!(resp.result.spore["capsule"]["core"]["name"], "test-spore");
     assert_eq!(resp.result.replicates.len(), 1);
@@ -882,7 +894,7 @@ async fn fetch_synapse_cmn_success() {
     let server = MockServer::start().await;
 
     let response = json!({
-        "code": "ok",
+        "kind": "result",
         "result": {
             "query": {"domain": "example.com"},
             "cmn": {
@@ -915,7 +927,7 @@ async fn fetch_synapse_cmn_success() {
 
     assert!(result.is_ok());
     let resp = result.unwrap();
-    assert_eq!(resp.code, "ok");
+    assert_eq!(resp.kind, "result");
     assert_eq!(resp.result.query.domain, "example.com");
 }
 
@@ -951,7 +963,7 @@ async fn fetch_synapse_mycelium_by_hash_success() {
     let server = MockServer::start().await;
 
     let response = json!({
-        "code": "ok",
+        "kind": "result",
         "result": {
             "query": {"hash": "b3.mychash"},
             "mycelium": {
@@ -989,7 +1001,7 @@ async fn fetch_synapse_mycelium_by_hash_success() {
 
     assert!(result.is_ok());
     let resp = result.unwrap();
-    assert_eq!(resp.code, "ok");
+    assert_eq!(resp.kind, "result");
     assert_eq!(resp.result.query.hash, "b3.mychash");
     assert_eq!(
         resp.result.mycelium["capsule"]["core"]["bio"],

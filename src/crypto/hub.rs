@@ -3,9 +3,9 @@
 //! These helpers encode a CMN public key into a DNS-safe subdomain and recover
 //! the public key from that subdomain without a database lookup.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
-use super::{format_key, parse_key, KeyAlgorithm};
+use super::{KeyAlgorithm, format_key, parse_key};
 
 /// Compute a DNS-safe cmnhub subdomain from a public key string.
 ///
@@ -58,6 +58,10 @@ pub fn recover_pubkey_from_subdomain(subdomain: &str) -> Result<String> {
         .strip_prefix("ed-")
         .ok_or_else(|| anyhow!("Subdomain must start with 'ed-'"))?;
 
+    if b32.bytes().any(|b| b.is_ascii_uppercase()) {
+        return Err(anyhow!("Subdomain must be lowercase"));
+    }
+
     let key_bytes = data_encoding::BASE32_NOPAD
         .decode(b32.to_ascii_uppercase().as_bytes())
         .map_err(|e| anyhow!("Invalid base32 in subdomain: {}", e))?;
@@ -67,6 +71,8 @@ pub fn recover_pubkey_from_subdomain(subdomain: &str) -> Result<String> {
             key_bytes.len()
         ));
     }
+
+    super::key::validate_key_bytes(KeyAlgorithm::Ed25519, &key_bytes)?;
 
     Ok(format_key(KeyAlgorithm::Ed25519, &key_bytes))
 }
@@ -83,9 +89,10 @@ mod tests {
             compute_hub_subdomain("ed25519.2p3NPZceQ6njbPg8aMFsEynX3Cmv6uCt1XMGHhPcL4AT").unwrap();
         assert!(sub.starts_with("ed-"));
         assert_eq!(sub.len(), 55);
-        assert!(sub
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'));
+        assert!(
+            sub.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        );
     }
 
     #[test]
@@ -94,6 +101,20 @@ mod tests {
         let sub = compute_hub_subdomain(key).unwrap();
         let recovered = recover_pubkey_from_subdomain(&sub).unwrap();
         assert_eq!(recovered, key);
+    }
+
+    #[test]
+    fn test_recover_pubkey_rejects_uppercase_and_weak() {
+        let key = "ed25519.2p3NPZceQ6njbPg8aMFsEynX3Cmv6uCt1XMGHhPcL4AT";
+        let sub = compute_hub_subdomain(key).unwrap();
+        let sub_upper = format!("ed-{}", sub[3..].to_ascii_uppercase());
+        assert!(recover_pubkey_from_subdomain(&sub_upper).is_err());
+
+        // Weak/all-zero point
+        let zero_b32 = data_encoding::BASE32_NOPAD
+            .encode(&[0u8; 32])
+            .to_ascii_lowercase();
+        assert!(recover_pubkey_from_subdomain(&format!("ed-{zero_b32}")).is_err());
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -47,14 +47,27 @@ fn order_keys_at(value: &mut Value, pointer: &str, key_order: &[&str]) {
     }
 }
 
-/// Apply key ordering to each element of a JSON array at the given pointer.
-fn order_array_elements_at(value: &mut Value, pointer: &str, key_order: &[&str]) {
-    if let Some(Value::Array(arr)) = value.pointer_mut(pointer) {
-        for item in arr.iter_mut() {
-            if let Value::Object(map) = item {
-                *map = order_keys(map, key_order);
+/// Apply key ordering to a JSON value at the given pointer (supporting `[]` array paths).
+fn apply_ordering(value: &mut Value, pointer: &str, key_order: &[&str]) {
+    if let Some((head, tail)) = pointer.split_once("[]") {
+        let parent = if head.is_empty() {
+            Some(value as &mut Value)
+        } else {
+            value.pointer_mut(head)
+        };
+        if let Some(Value::Array(arr)) = parent {
+            for item in arr.iter_mut() {
+                if tail.is_empty() {
+                    if let Value::Object(map) = item {
+                        *map = order_keys(map, key_order);
+                    }
+                } else {
+                    apply_ordering(item, tail, key_order);
+                }
             }
         }
+    } else {
+        order_keys_at(value, pointer, key_order);
     }
 }
 
@@ -69,11 +82,7 @@ fn format_value(value: &Value, orderings: &[(&str, &[&str])]) -> Result<String> 
         serde_json::from_str(&canonical).map_err(|e| anyhow!("JCS re-parse failed: {}", e))?;
 
     for &(pointer, key_order) in orderings {
-        if let Some(array_pointer) = pointer.strip_suffix("[]") {
-            order_array_elements_at(&mut sorted, array_pointer, key_order);
-        } else {
-            order_keys_at(&mut sorted, pointer, key_order);
-        }
+        apply_ordering(&mut sorted, pointer, key_order);
     }
 
     let pretty =
@@ -104,6 +113,7 @@ const SPORE_CORE_KEY_ORDER: &[&str] = &[
     "intent",
     "license",
     "mutations",
+    "size_bytes",
     "updated_at_epoch_ms",
     "bonds",
     "tree",
@@ -156,7 +166,7 @@ const TASTE_CORE_KEY_ORDER: &[&str] = &[
 
 const CMN_TOP_KEY_ORDER: &[&str] = &["$schema", "capsules", "capsule_signature"];
 const CMN_CAPSULE_ENTRY_KEY_ORDER: &[&str] = &["uri", "serial", "key", "history", "endpoints"];
-const CMN_ENDPOINT_KEY_ORDER: &[&str] = &["type", "url", "hashes", "format", "delta_url"];
+const CMN_ENDPOINT_KEY_ORDER: &[&str] = &["type", "url", "hash", "hashes", "format", "delta_url"];
 const KEY_HISTORY_ORDER: &[&str] = &[
     "key",
     "status",
@@ -165,6 +175,13 @@ const KEY_HISTORY_ORDER: &[&str] = &[
     "effective_serial",
     "rotation_signature",
     "revoked_at_epoch_ms",
+];
+
+const CMN_ORDERINGS: &[(&str, &[&str])] = &[
+    ("", CMN_TOP_KEY_ORDER),
+    ("/capsules[]", CMN_CAPSULE_ENTRY_KEY_ORDER),
+    ("/capsules[]/endpoints[]", CMN_ENDPOINT_KEY_ORDER),
+    ("/capsules[]/history[]", KEY_HISTORY_ORDER),
 ];
 
 // -- PrettyJson implementations --
@@ -250,71 +267,20 @@ impl PrettyJson for super::Taste {
 impl PrettyJson for super::CmnEntry {
     fn to_pretty_json(&self) -> Result<String> {
         let value = serialize_to_value(self, "CmnEntry")?;
-        format_value(
-            &value,
-            &[
-                ("", CMN_TOP_KEY_ORDER),
-                ("/capsules[]", CMN_CAPSULE_ENTRY_KEY_ORDER),
-            ],
-        )
+        format_value(&value, CMN_ORDERINGS)
     }
 }
 
 /// Apply key ordering to CmnEntry after it's already a Value.
 /// Useful when the CmnEntry has already been serialized/validated.
 pub fn format_cmn_entry(value: &Value) -> Result<String> {
-    format_value(
-        value,
-        &[
-            ("", CMN_TOP_KEY_ORDER),
-            ("/capsules[]", CMN_CAPSULE_ENTRY_KEY_ORDER),
-        ],
-    )
+    format_value(value, CMN_ORDERINGS)
 }
 
 impl super::CmnEntry {
     /// Pretty-print with full deep key ordering including nested endpoints.
     pub fn to_pretty_json_deep(&self) -> Result<String> {
-        let canonical =
-            serde_jcs::to_string(self).map_err(|e| anyhow!("JCS serialization failed: {}", e))?;
-        let mut sorted: Value =
-            serde_json::from_str(&canonical).map_err(|e| anyhow!("JCS re-parse failed: {}", e))?;
-
-        // Top-level
-        if let Value::Object(ref map) = sorted.clone() {
-            sorted = Value::Object(order_keys(map, CMN_TOP_KEY_ORDER));
-        }
-
-        // Each capsule entry
-        if let Some(Value::Array(capsules)) = sorted.pointer_mut("/capsules") {
-            for capsule in capsules.iter_mut() {
-                if let Value::Object(map) = capsule {
-                    *map = order_keys(map, CMN_CAPSULE_ENTRY_KEY_ORDER);
-
-                    // Endpoints inside each capsule
-                    if let Some(Value::Array(endpoints)) = map.get_mut("endpoints") {
-                        for ep in endpoints.iter_mut() {
-                            if let Value::Object(ep_map) = ep {
-                                *ep_map = order_keys(ep_map, CMN_ENDPOINT_KEY_ORDER);
-                            }
-                        }
-                    }
-
-                    // Key history inside each capsule
-                    if let Some(Value::Array(history)) = map.get_mut("history") {
-                        for item in history.iter_mut() {
-                            if let Value::Object(history_map) = item {
-                                *history_map = order_keys(history_map, KEY_HISTORY_ORDER);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let pretty = serde_json::to_string_pretty(&sorted)
-            .map_err(|e| anyhow!("Pretty-print failed: {}", e))?;
-        Ok(format!("{}\n", pretty))
+        self.to_pretty_json()
     }
 }
 

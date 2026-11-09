@@ -19,22 +19,27 @@ pub mod uri;
 pub mod util;
 
 pub use crypto::{
-    compute_blake3_hash, compute_signature, format_hash, format_key, format_signature, parse_hash,
-    parse_key, parse_signature, verify_json_signature, verify_signature, HashAlgorithm,
-    KeyAlgorithm, SignatureAlgorithm,
+    HashAlgorithm, KeyAlgorithm, SignatureAlgorithm, compute_blake3_hash, compute_signature,
+    format_hash, format_key, format_signature, parse_hash, parse_key, parse_signature,
+    verify_json_signature, verify_signature,
 };
 pub use model::*;
-pub use schemas::{detect_schema_type, validate as validate_schema, SchemaType};
+pub use schemas::{SchemaType, detect_schema_type, validate as validate_schema};
 pub use tree::{
-    compute_tree_hash_from_entries, flatten_entries, max_mtime, walk_dir, DirEntry, DirReader,
-    TreeEntry,
+    DirEntry, DirReader, TreeEntry, compute_tree_hash_from_entries, flatten_entries, max_mtime,
+    walk_dir,
 };
 pub use uri::{
-    build_domain_uri, build_mycelium_uri, build_spore_uri, build_taste_uri, cmn_entry_url,
-    normalize_and_validate_url, normalize_taste_target_uri, parse_uri, validate_domain, CmnUri,
-    CmnUriKind,
+    CmnUri, CmnUriKind, build_domain_uri, build_mycelium_uri, build_spore_uri, build_taste_uri,
+    cmn_entry_url, normalize_and_validate_url, normalize_taste_target_uri, parse_uri,
+    validate_domain,
 };
 pub use util::{
-    compare_version_timestamps, is_safe_local_path_segment, local_dir_name,
-    validate_timestamp_not_future, VersionOrder,
+    VersionOrder, compare_version_timestamps, is_safe_local_path_segment, local_dir_name,
+    validate_timestamp_not_future,
 };
+
+#[cfg(feature = "client")]
+pub fn parse_json_no_duplicates(bytes: &[u8]) -> anyhow::Result<serde_json::Value> {
+    client::json_from_slice_reject_duplicates(bytes, "payload")
+}

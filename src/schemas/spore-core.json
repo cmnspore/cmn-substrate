@@ -61,8 +61,8 @@
         "relation": {
           "type": "string",
           "minLength": 1,
-          "not": { "enum": ["spawned_from", "absorbed_from"] },
-          "description": "Relationship type. Predefined: depends_on, follows, extends. Custom types allowed. Historical relations (spawned_from, absorbed_from) are injected at release time from .cmn/ metadata and must not appear in spore.core.json."
+          "not": { "enum": ["spawned_from"] },
+          "description": "Relationship type. Predefined: depends_on, follows, extends, absorbed_from. Custom types allowed. Historical relation spawned_from is injected at release time from .cmn/ metadata and must not appear in spore.core.json."
         },
         "id": {
           "type": "string",
